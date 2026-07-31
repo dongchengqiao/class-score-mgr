@@ -37,6 +37,9 @@ function load() {
 }
 
 function save() {
+  // _sequences.history 语义为「历史记录总条数」（用于统计展示），每次保存时自动校准
+  data._sequences.history = data.students.reduce((sum, s) =>
+    sum + (Array.isArray(s.history) ? s.history.length : 0), 0);
   const tmp = DATA_FILE + '.tmp';
   fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf-8');
   fs.renameSync(tmp, DATA_FILE);
@@ -474,6 +477,8 @@ const DB = {
       created_at: nowISO()
     };
     student.history.push(record);
+    // 同步历史总条数统计（_sequences.history 用于统计展示）
+    data._sequences.history = (data._sequences.history || 0) + 1;
     return id;
   },
 
@@ -484,6 +489,8 @@ const DB = {
     const idx = student.history.findIndex(h => h.id === id);
     if (idx === -1) return false;
     student.history.splice(idx, 1);
+    // 同步历史总条数统计
+    data._sequences.history = Math.max(0, (data._sequences.history || 0) - 1);
     save();
     return true;
   },
@@ -650,7 +657,8 @@ const DB = {
         groups: maxId(data.groups, 'id'),
         rules: maxId(data.rules, 'id'),
         shopItems: maxId(data.shopItems, 'id'),
-        history: maxId(allHistory, 'id')
+        // history 语义为「历史记录总条数」（统计用）
+        history: allHistory.length
       };
     }
 
