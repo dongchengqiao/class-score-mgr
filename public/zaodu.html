@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>早读加分 · 703班</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Quicksand:wght@500;700&family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/zaodu.css">
+</head>
+<body>
+  <div class="container">
+    <div id="authBanner" class="auth-banner"></div>
+    <div class="header">
+      <div class="title-area">
+        <h1>📖 早读加分</h1>
+        <div class="badge"><span>🐻</span> 703班</div>
+        <div class="badge"><span>🎯</span> <span id="totalStudents">46</span> 人</div>
+      </div>
+      <div class="action-buttons">
+        <button id="sortPinyinBtn" class="cute-btn sort-btn"><i class="fas fa-sort-alpha-down"></i> 拼音排序</button>
+        <button id="resetAllScoresBtn" class="cute-btn reset-btn"><i class="fas fa-undo-alt"></i> 重置积分</button>
+        <button id="exportDataBtn" class="cute-btn export-btn"><i class="fas fa-download"></i> 导出 CSV</button>
+        <a href="/" class="cute-btn" style="text-decoration:none;"><i class="fas fa-arrow-left"></i> 返回管理</a>
+      </div>
+    </div>
+    <div id="cardsContainer" class="cards-grid"></div>
+    <div class="footer-note" id="footerNote">🌟 点击 ＋/－ 为每位同学加减分</div>
+  </div>
+  <script src="js/api.js"></script>
+  <script src="js/zaodu.js"></script>
+</body>
+</html>

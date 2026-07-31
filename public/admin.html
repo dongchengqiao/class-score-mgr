@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理后台 - 班级积分管理</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Quicksand:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body class="theme-vibrant">
+  <div class="bg-decoration">
+    <div class="bg-circle bg-circle-1"></div>
+    <div class="bg-circle bg-circle-2"></div>
+    <div class="bg-circle bg-circle-3"></div>
+    <div class="bg-circle bg-circle-4"></div>
+    <div class="border-pattern"></div>
+  </div>
+
+  <div class="admin-container">
+    <!-- 顶部导航 -->
+    <header class="admin-header">
+      <div class="admin-logo"><i class="fas fa-shield-alt"></i> 管理后台</div>
+      <div class="admin-header-right">
+        <span class="admin-badge" id="adminBadge"><i class="fas fa-lock"></i> 未验证</span>
+        <a href="/index.html" class="btn btn-sm btn-white"><i class="fas fa-arrow-left"></i> 返回首页</a>
+      </div>
+    </header>
+
+    <!-- 解锁遮罩 -->
+    <div id="unlockOverlay" class="unlock-overlay">
+      <div class="unlock-card" id="unlockCard">
+        <i class="fas fa-lock" id="unlockIcon" style="font-size:48px;color:var(--primary);margin-bottom:15px;"></i>
+        <h2 id="unlockTitle">管理员验证</h2>
+        <p id="unlockDesc" style="color:var(--text-light);margin-bottom:20px;">加载中...</p>
+        <div id="unlockPasswordGroup">
+          <input type="password" id="adminPasswordInput" class="form-control" placeholder="请输入密码" style="margin-bottom:12px;">
+        </div>
+        <div id="unlockSetPwGroup" style="display:none;">
+          <input type="password" id="adminNewPwInput" class="form-control" placeholder="设置新密码" style="margin-bottom:8px;">
+          <input type="password" id="adminConfirmPwInput" class="form-control" placeholder="确认新密码" style="margin-bottom:12px;">
+        </div>
+        <button id="adminUnlockBtn" class="btn btn-primary" style="width:100%;"><i class="fas fa-unlock"></i> 解锁</button>
+        <p id="unlockError" style="color:var(--primary);margin-top:10px;display:none;"></p>
+      </div>
+    </div>
+
+    <!-- 加载遮罩 -->
+    <div id="loadingOverlay" class="unlock-overlay" style="display:none;">
+      <div class="unlock-card" style="text-align:center;">
+        <i class="fas fa-spinner fa-spin" style="font-size:48px;color:var(--secondary);margin-bottom:15px;"></i>
+        <h2>加载中...</h2>
+      </div>
+    </div>
+
+    <!-- 主内容 -->
+    <div class="admin-content" id="adminContent" style="display:none;">
+
+      <!-- 统计卡片 -->
+      <div class="admin-section">
+        <h2 class="section-title"><i class="fas fa-chart-bar"></i> 系统概览</h2>
+        <div class="stats-grid" id="statsGrid">
+          <div class="stat-card stat-students">
+            <div class="stat-icon"><i class="fas fa-user-graduate"></i></div>
+            <div class="stat-info">
+              <span class="stat-number" id="statStudents">-</span>
+              <span class="stat-label">学生总数</span>
+            </div>
+            <div class="stat-sub" id="statStudentsSub"></div>
+          </div>
+          <div class="stat-card stat-groups">
+            <div class="stat-icon"><i class="fas fa-users"></i></div>
+            <div class="stat-info">
+              <span class="stat-number" id="statGroups">-</span>
+              <span class="stat-label">小组</span>
+            </div>
+          </div>
+          <div class="stat-card stat-rules">
+            <div class="stat-icon"><i class="fas fa-list"></i></div>
+            <div class="stat-info">
+              <span class="stat-number" id="statRules">-</span>
+              <span class="stat-label">规则</span>
+            </div>
+            <div class="stat-sub" id="statRulesSub"></div>
+          </div>
+          <div class="stat-card stat-shop">
+            <div class="stat-icon"><i class="fas fa-shopping-cart"></i></div>
+            <div class="stat-info">
+              <span class="stat-number" id="statShop">-</span>
+              <span class="stat-label">商品</span>
+            </div>
+          </div>
+          <div class="stat-card stat-points">
+            <div class="stat-icon"><i class="fas fa-star"></i></div>
+            <div class="stat-info">
+              <span class="stat-number" id="statTotalPoints">-</span>
+              <span class="stat-label">总积分</span>
+            </div>
+          </div>
+          <div class="stat-card stat-history">
+            <div class="stat-icon"><i class="fas fa-history"></i></div>
+            <div class="stat-info">
+              <span class="stat-number" id="statHistory">-</span>
+              <span class="stat-label">操作记录</span>
+            </div>
+          </div>
+          <div class="stat-card stat-health">
+            <div class="stat-icon"><i class="fas fa-heartbeat"></i></div>
+            <div class="stat-info">
+              <span class="stat-number" id="statHealth">-</span>
+              <span class="stat-label">服务器状态</span>
+            </div>
+          </div>
+          <div class="stat-card stat-server-time">
+            <div class="stat-icon"><i class="fas fa-clock"></i></div>
+            <div class="stat-info">
+              <span class="stat-number" id="statServerTime" style="font-size:14px;">-</span>
+              <span class="stat-label">服务器时间</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 学生管理 -->
+      <div class="admin-section">
+        <h2 class="section-title"><i class="fas fa-user-graduate"></i> 学生管理</h2>
+        <div class="admin-card">
+          <div class="admin-card-body">
+            <div class="admin-form-row">
+              <div class="admin-form-group" style="flex:2;">
+                <label>添加学生（每行一个姓名）</label>
+                <textarea id="adminStudentNames" class="form-control" rows="4" placeholder="每行输入一个学生名字"></textarea>
+              </div>
+              <div class="admin-form-group" style="flex:1;">
+                <label>性别</label>
+                <div class="radio-group">
+                  <label class="radio-container radio-male">
+                    <input type="radio" class="radio-input" name="adminGender" value="male" checked>
+                    <span class="radio-mark"></span> 男生
+                  </label>
+                  <label class="radio-container radio-female">
+                    <input type="radio" class="radio-input" name="adminGender" value="female">
+                    <span class="radio-mark"></span> 女生
+                  </label>
+                </div>
+              </div>
+              <div class="admin-form-actions" style="align-self:flex-end;">
+                <button id="adminAddStudentBtn" class="btn btn-primary"><i class="fas fa-plus"></i> 添加学生</button>
+              </div>
+            </div>
+            <div id="adminStudentsList" class="admin-student-list" style="margin-top:15px;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 密码管理 -->
+      <div class="admin-section">
+        <h2 class="section-title"><i class="fas fa-key"></i> 密码管理</h2>
+        <div class="admin-card">
+          <div class="admin-card-body">
+            <div id="passwordStatus" class="admin-status"><i class="fas fa-info-circle"></i> 加载中...</div>
+            <div class="admin-form-row">
+              <div class="admin-form-group">
+                <label>当前密码</label>
+                <input type="password" id="oldPassword" class="form-control" placeholder="当前密码">
+              </div>
+              <div class="admin-form-group">
+                <label>新密码</label>
+                <input type="password" id="newPassword" class="form-control" placeholder="新密码">
+              </div>
+              <div class="admin-form-actions">
+                <button id="setPasswordBtn" class="btn btn-primary"><i class="fas fa-save"></i> 设置密码</button>
+                <button id="changePasswordBtn" class="btn btn-accent2"><i class="fas fa-edit"></i> 修改密码</button>
+                <button id="cancelPasswordBtn" class="btn btn-danger"><i class="fas fa-times"></i> 取消密码</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 数据管理 -->
+      <div class="admin-section">
+        <h2 class="section-title"><i class="fas fa-database"></i> 数据管理</h2>
+        <div class="admin-card">
+          <div class="admin-card-body">
+            <div class="admin-form-row">
+              <button id="adminExportBtn" class="btn btn-secondary"><i class="fas fa-download"></i> 导出全部数据 (JSON)</button>
+              <button id="adminImportBtn" class="btn btn-primary"><i class="fas fa-upload"></i> 导入数据 (JSON)</button>
+              <input type="file" id="adminImportFile" accept=".json" style="display:none;">
+              <button id="adminExportReportBtn" class="btn btn-accent3"><i class="fas fa-file-excel"></i> 导出积分报表 (Excel)</button>
+              <button id="adminResetAllPoints" class="btn btn-danger"><i class="fas fa-eraser"></i> 积分清零</button>
+              <button id="adminDeleteAllStudents" class="btn btn-danger"><i class="fas fa-trash-alt"></i> 删除所有学生</button>
+            </div>
+            <div style="margin-top:15px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+              <label style="font-size:14px;color:var(--text-light);">报表日期范围：</label>
+              <input type="date" id="reportStartDate" class="form-control" style="width:auto;flex:1;min-width:140px;">
+              <span style="color:var(--text-light);">至</span>
+              <input type="date" id="reportEndDate" class="form-control" style="width:auto;flex:1;min-width:140px;">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 班级信息 -->
+      <div class="admin-section">
+        <h2 class="section-title"><i class="fas fa-school"></i> 班级信息</h2>
+        <div class="admin-card">
+          <div class="admin-card-body">
+            <div class="admin-form-row">
+              <div class="admin-form-group">
+                <label>班级名称</label>
+                <input type="text" id="adminClassName" class="form-control" placeholder="如: 703班">
+              </div>
+              <div class="admin-form-actions" style="align-self:flex-end;">
+                <button id="adminSaveClassInfoBtn" class="btn btn-primary"><i class="fas fa-save"></i> 保存</button>
+              </div>
+            </div>
+            <div id="classInfoStatus" class="admin-status" style="margin-top:12px;display:none;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 系统设置 -->
+      <div class="admin-section">
+        <h2 class="section-title"><i class="fas fa-cog"></i> 系统设置</h2>
+        <div class="admin-card">
+          <div class="admin-card-body">
+            <div id="settingsList" style="margin-bottom:15px;">
+              <p style="color:var(--text-light);">暂无自定义设置</p>
+            </div>
+            <div class="admin-form-row">
+              <div class="admin-form-group">
+                <label>设置键名</label>
+                <input type="text" id="settingKey" class="form-control" placeholder="如: class_name">
+              </div>
+              <div class="admin-form-group">
+                <label>设置值</label>
+                <input type="text" id="settingValue" class="form-control" placeholder="如: 703班">
+              </div>
+              <button id="addSettingBtn" class="btn btn-primary"><i class="fas fa-plus"></i> 添加/更新</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 规则管理 -->
+      <div class="admin-section">
+        <h2 class="section-title"><i class="fas fa-gavel"></i> 规则管理</h2>
+        <div class="admin-card">
+          <div class="admin-card-body">
+            <div class="admin-form-row">
+              <div class="admin-form-group">
+                <label>规则名称</label>
+                <input type="text" id="adminRuleName" class="form-control" placeholder="如: 按时完成作业">
+              </div>
+              <div class="admin-form-group">
+                <label>分值（正数加分，负数减分）</label>
+                <input type="number" id="adminRulePoints" class="form-control" placeholder="如: 2">
+              </div>
+              <button id="adminAddRuleBtn" class="btn btn-primary"><i class="fas fa-plus"></i> 添加规则</button>
+            </div>
+            <div id="adminRulesList" class="rules-list" style="margin-top:15px;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 商店管理 -->
+      <div class="admin-section">
+        <h2 class="section-title"><i class="fas fa-store"></i> 商店管理</h2>
+        <div class="admin-card">
+          <div class="admin-card-body">
+            <div class="admin-form-row">
+              <div class="admin-form-group">
+                <label>商品名称</label>
+                <input type="text" id="adminItemName" class="form-control" placeholder="如: 免作业卡">
+              </div>
+              <div class="admin-form-group">
+                <label>所需积分</label>
+                <input type="number" id="adminItemCost" class="form-control" placeholder="如: 20">
+              </div>
+              <div class="admin-form-group">
+                <label>库存数量</label>
+                <input type="number" id="adminItemStock" class="form-control" placeholder="如: 10">
+              </div>
+              <button id="adminAddItemBtn" class="btn btn-primary"><i class="fas fa-plus"></i> 添加商品</button>
+            </div>
+            <div id="adminShopItems" class="shop-items" style="margin-top:15px;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 系统信息 -->
+      <div class="admin-section">
+        <h2 class="section-title"><i class="fas fa-info-circle"></i> 系统信息</h2>
+        <div class="admin-card">
+          <div class="admin-card-body">
+            <div id="systemInfo">
+              <p>数据文件：<code>backend/data/class-data.json</code></p>
+              <p>当前序列：<span id="seqInfo">加载中...</span></p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>

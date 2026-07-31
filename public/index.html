@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>班级积分管理系统</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Quicksand:wght@500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/voice.css">
+</head>
+<body class="theme-vibrant">
+  <!-- 背景装饰
+  <div class="bg-decoration">
+    <div class="bg-circle bg-circle-1"></div>
+    <div class="bg-circle bg-circle-2"></div>
+    <div class="bg-circle bg-circle-3"></div>
+    <div class="bg-circle bg-circle-4"></div>
+    <div class="border-pattern"></div>
+  </div> -->
+
+  <!-- 音乐控制 -->
+  <div class="music-control">
+    <button id="musicToggle"><i class="fas fa-music"></i></button>
+    <audio id="bgMusic" loop>
+      <source src="https://assets.codepen.io/123456/happy-background.mp3" type="audio/mpeg">
+    </audio>
+  </div>
+
+  <!-- 作者水印 -->
+  <div class="author-watermark" id="watermark">📚 xxx班 · 积分管理</div>
+  <script>
+    (function() {
+      fetch('/api/admin/settings')
+        .then(r => r.json())
+        .then(s => {
+          if (s.class_name) {
+            document.getElementById('watermark').textContent = '📚 ' + s.class_name + ' · 积分管理';
+            document.title = s.class_name + ' - 班级积分管理系统';
+          }
+        })
+        .catch(() => {});
+    })();
+  </script>
+
+  <!-- 主容器 -->
+  <div class="app-container">
+    <header class="header">
+      <div class="logo"><i class="fas fa-star"></i> 班级积分管理</div>
+      <div class="header-controls">
+        <button id="loginBtn" class="btn btn-primary" style="display:none;"><i class="fas fa-sign-in-alt"></i> 登录</button>
+        <button id="logoutBtn" class="btn btn-danger" style="display:none;"><i class="fas fa-sign-out-alt"></i> 退出登录</button>
+        <button id="passwordBtn" class="btn btn-danger"><i class="fas fa-key"></i> 设置密码</button>
+        <button id="timerBtn" class="btn btn-accent2"><i class="fas fa-stopwatch"></i> 计时</button>
+        <button id="goToMorningReading" class="btn btn-accent3" onclick="location.href='/zaodu.html'"><i class="fas fa-book-open"></i> 早读加分</button>
+        <button id="goToVoice" class="btn btn-accent3"><i class="fas fa-microphone"></i> 语音加分</button>
+        <button id="goToAdmin" class="btn btn-secondary" onclick="location.href='/admin.html'"><i class="fas fa-shield-alt"></i> 管理后台</button>
+        <button id="themeToggle" class="btn btn-accent1"><i class="fas fa-palette"></i> 更换主题</button>
+        <button id="exportDetailsBtn" class="btn btn-secondary"><i class="fas fa-file-excel"></i> 导出积分明细</button>
+        <button id="exportData" class="btn btn-secondary"><i class="fas fa-download"></i> 导出数据</button>
+        <button id="importData" class="btn btn-primary"><i class="fas fa-upload"></i> 导入数据</button>
+        <input type="file" id="importFile" accept=".json" style="display:none;">
+      </div>
+    </header>
+
+    <div class="main-content">
+      <!-- 左侧面板 -->
+      <div class="left-panel">
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="students"><i class="fas fa-user-graduate"></i> 学生管理</button>
+          <button class="tab-btn" data-tab="groups"><i class="fas fa-users"></i> 小组管理</button>
+        </div>
+
+        <!-- 学生管理 -->
+        <div id="students" class="tab-content active">
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title"><i class="fas fa-users"></i> 所有学生</h2>
+              <div class="student-list-controls">
+                <button id="randomRollCallBtn" class="btn btn-sm btn-accent2"><i class="fas fa-dice"></i> 随机点名</button>
+                <button id="multiSelectToggleBtn" class="btn btn-sm btn-secondary"><i class="fas fa-tasks"></i> 批量操作</button>
+                <button id="quickMultiAddBtn" class="btn btn-sm btn-primary"><i class="fas fa-plus-circle"></i> 多选加分</button>
+                <button id="selectAllBtn" class="btn btn-sm btn-white" style="display:none;"><i class="fas fa-check-square"></i> 全选</button>
+                <button id="batchAddPointsBtn" class="btn btn-sm btn-primary" style="display:none;"><i class="fas fa-plus-circle"></i> 批量加分</button>
+                <button id="batchSubtractPointsBtn" class="btn btn-sm btn-danger" style="display:none;"><i class="fas fa-minus-circle"></i> 批量减分</button>
+                <button id="cancelMultiSelectBtn" class="btn btn-sm btn-white" style="display:none;"><i class="fas fa-times"></i> 取消</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="search-container mb-2">
+                <input type="text" id="studentSearchInput" class="form-control" placeholder="搜索学生姓名...">
+              </div>
+              <div id="allStudents" class="student-list"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title"><i class="fas fa-users"></i> 未分组学生</h2>
+            </div>
+            <div class="card-body">
+              <div id="ungroupedStudents" class="student-list dropzone"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 小组管理 -->
+        <div id="groups" class="tab-content">
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title"><i class="fas fa-layer-group"></i> 创建小组</h2>
+            </div>
+            <div class="card-body">
+              <div class="form-group">
+                <div class="d-flex gap-2">
+                  <input type="text" id="groupName" class="form-control" placeholder="输入小组名称">
+                  <button id="addGroupBtn" class="btn btn-secondary"><i class="fas fa-plus"></i> 添加小组</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="groupsArea" class="group-container"></div>
+        </div>
+      </div>
+
+      <!-- 右侧面板 -->
+      <div class="right-panel">
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="studentLeaderboard"><i class="fas fa-medal"></i> 个人排行榜</button>
+          <button class="tab-btn" data-tab="groupLeaderboard"><i class="fas fa-users"></i> 小组排行榜</button>
+          <button class="tab-btn" data-tab="rules"><i class="fas fa-list-check"></i> 规则表</button>
+          <button class="tab-btn" data-tab="shop"><i class="fas fa-store"></i> 积分商店</button>
+        </div>
+
+        <div id="studentLeaderboard" class="tab-content active">
+          <h3><i class="fas fa-medal"></i> 个人排行榜</h3>
+          <div id="studentLeaderboardList" class="leaderboard-list"></div>
+        </div>
+
+        <div id="groupLeaderboard" class="tab-content">
+          <h3><i class="fas fa-users"></i> 小组排行榜</h3>
+          <div id="groupLeaderboardList" class="leaderboard-list"></div>
+        </div>
+
+        <div id="rules" class="tab-content">
+          <h3><i class="fas fa-gavel"></i> 积分规则</h3>
+          <div class="rules-management">
+            <p style="color:var(--text-light);margin-bottom:15px;font-size:14px;">规则管理已移至 <a href="/admin.html" style="color:var(--secondary);">管理后台</a></p>
+            <div id="rulesList" class="rules-list"></div>
+          </div>
+        </div>
+
+        <div id="shop" class="tab-content">
+          <h3><i class="fas fa-shopping-cart"></i> 积分商店</h3>
+          <div class="shop-management">
+            <p style="color:var(--text-light);margin-bottom:15px;font-size:14px;">商品管理已移至 <a href="/admin.html" style="color:var(--secondary);">管理后台</a></p>
+            <div id="shopItems" class="shop-items"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= 通用操作弹窗 ======= -->
+  <div id="modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">操作</h3>
+        <span class="close">&times;</span>
+      </div>
+      <div class="modal-body" id="modalContent"></div>
+    </div>
+  </div>
+
+  <!-- ======= 自定义确认弹窗 ======= -->
+  <div id="customConfirm" class="modal">
+    <div class="modal-content">
+      <div class="modal-header"><h3 class="modal-title" id="confirmTitle">确认</h3><span class="close" onclick="document.getElementById('customConfirm').style.display='none'">&times;</span></div>
+      <div class="modal-body">
+        <p id="confirmMessage"></p>
+        <div class="modal-footer">
+          <button id="confirmCancelBtn" class="btn btn-white">取消</button>
+          <button id="confirmOkBtn" class="btn btn-primary">确定</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= 自定义提示弹窗 ======= -->
+  <div id="customAlert" class="modal">
+    <div class="modal-content">
+      <div class="modal-header"><h3 class="modal-title">提示</h3><span class="close" onclick="document.getElementById('customAlert').style.display='none'">&times;</span></div>
+      <div class="modal-body">
+        <p id="alertMessage"></p>
+        <div class="modal-footer"><button id="alertOkBtn" class="btn btn-primary">确定</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= 随机点名弹窗 ======= -->
+  <div id="rollCallModal" class="modal roll-call-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">随机点名</h3>
+        <span class="close">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div id="rollCallStudentList" class="roll-call-container"></div>
+      </div>
+      <div class="roll-call-footer">
+        <label for="rollCallCount">抽取人数:</label>
+        <select id="rollCallCount" class="form-control" style="width:auto;"></select>
+        <button id="startRollCallBtn" class="btn btn-primary"><i class="fas fa-play"></i> 开始</button>
+        <button id="resetRollCallBtn" class="btn btn-secondary" style="display:none;"><i class="fas fa-redo"></i> 重来</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= 计时器弹窗 ======= -->
+  <div id="timerModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">计时器</h3>
+        <span class="close">&times;</span>
+      </div>
+      <div class="modal-body" style="padding:0;">
+        <div class="timer-tabs">
+          <button class="timer-tab-btn active" data-tab="stopwatch"><i class="fas fa-stopwatch"></i> 秒表</button>
+          <button class="timer-tab-btn" data-tab="countdown"><i class="fas fa-hourglass-half"></i> 倒计时</button>
+        </div>
+        <div class="timer-content">
+          <div id="stopwatchContent" class="timer-pane active">
+            <div class="timer-display" id="stopwatchDisplay">00:00.00</div>
+            <div class="timer-controls">
+              <button id="resetStopwatchBtn" class="btn btn-white"><i class="fas fa-redo"></i> 复位</button>
+              <button id="startStopwatchBtn" class="btn btn-accent2"><i class="fas fa-play"></i> 开始</button>
+            </div>
+          </div>
+          <div id="countdownContent" class="timer-pane">
+            <div class="timer-display" id="countdownDisplay">00:00:00</div>
+            <div class="countdown-inputs" id="countdownInputs">
+              <input type="number" id="hoursInput" min="0" max="23" placeholder="时">
+              <span>:</span>
+              <input type="number" id="minutesInput" min="0" max="59" placeholder="分">
+              <span>:</span>
+              <input type="number" id="secondsInput" min="0" max="59" placeholder="秒">
+            </div>
+            <div class="timer-controls">
+              <button id="cancelCountdownBtn" class="btn btn-white"><i class="fas fa-times"></i> 取消</button>
+              <button id="startCountdownBtn" class="btn btn-accent2"><i class="fas fa-play"></i> 开始</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content:center;">
+        <button id="minimizeTimerBtn" class="btn btn-secondary"><i class="fas fa-compress-arrows-alt"></i> 最小化</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= 设置密码弹窗 ======= -->
+  <div id="setPasswordModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header"><h3 class="modal-title">设置页面密码</h3><span class="close">&times;</span></div>
+      <div class="modal-body">
+        <p>设置后，每次进入页面都需要输入密码才能操作。</p>
+        <form id="setPasswordForm">
+          <div class="form-group">
+            <label for="newPassword1" class="form-label">新密码:</label>
+            <input type="password" id="newPassword1" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label for="newPassword2" class="form-label">确认新密码:</label>
+            <input type="password" id="newPassword2" class="form-control" required>
+          </div>
+          <div class="modal-footer" style="padding-right:0;">
+            <button type="submit" class="btn btn-primary">确认设置</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= 修改密码弹窗 ======= -->
+  <div id="changePasswordModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header"><h3 class="modal-title">修改页面密码</h3><span class="close">&times;</span></div>
+      <div class="modal-body">
+        <form id="changePasswordForm">
+          <div class="form-group">
+            <label for="oldPassword" class="form-label">旧密码</label>
+            <input type="password" id="oldPassword" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label for="changeNewPassword1" class="form-label">新密码:</label>
+            <input type="password" id="changeNewPassword1" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label for="changeNewPassword2" class="form-label">确认新密码:</label>
+            <input type="password" id="changeNewPassword2" class="form-control" required>
+          </div>
+          <div class="modal-footer" style="padding-right:0; justify-content:space-between;">
+            <button type="button" id="cancelPasswordBtn" class="btn btn-danger">取消密码保护</button>
+            <button type="submit" class="btn btn-primary">确认修改</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= 导出明细弹窗 ======= -->
+  <div id="exportDetailsModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header"><h3 class="modal-title">导出积分明细</h3><span class="close">&times;</span></div>
+      <div class="modal-body">
+        <p>请选择要导出积分记录的日期范围。</p>
+        <div class="date-picker-container">
+          <div class="form-group">
+            <label for="startDate" class="form-label">开始日期:</label>
+            <div class="date-input-wrapper">
+              <i class="fas fa-calendar-alt"></i>
+              <input type="date" id="startDate" class="form-control">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="endDate" class="form-label">结束日期:</label>
+            <div class="date-input-wrapper">
+              <i class="fas fa-calendar-alt"></i>
+              <input type="date" id="endDate" class="form-control">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="generateReportBtn" class="btn btn-primary" disabled><i class="fas fa-download"></i> 导出</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= 语音加分弹窗 ======= -->
+  <div id="voiceModal" class="modal">
+    <div class="modal-content" style="max-width:680px;">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fas fa-microphone"></i> 语音加分</h3>
+        <span class="close">&times;</span>
+      </div>
+      <div class="modal-body" style="padding:20px;">
+        <!-- 麦克风区域 -->
+        <div class="voice-card">
+          <div class="voice-card-body voice-mic-section">
+            <div class="mic-area">
+              <button id="micBtn" class="mic-btn" title="点击开始语音识别（快捷键：空格）">
+                <i class="fas fa-microphone"></i>
+              </button>
+              <div id="micStatus" class="mic-status">点击麦克风开始</div>
+              <div class="mic-hint">说出指令：<strong>「姓名 原因 加/减 分数」</strong></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 错误提示 -->
+        <div id="errorMsg" class="voice-error" style="display:none;"></div>
+
+        <!-- 识别文本 -->
+        <div class="voice-card">
+          <div class="voice-card-header"><i class="fas fa-comment-dots"></i> 识别结果</div>
+          <div class="voice-card-body">
+            <div id="transcript" class="transcript-text">
+              <span class="transcript-empty">等待语音输入...</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 解析确认卡片 -->
+        <div id="parseCard" class="voice-card">
+          <div class="voice-card-header"><i class="fas fa-clipboard-check"></i> 确认操作</div>
+          <div class="voice-card-body">
+            <div class="parse-grid">
+              <div class="parse-row">
+                <span class="parse-label">👤 学生</span>
+                <span id="parseName" class="parse-value"></span>
+              </div>
+              <div class="parse-row">
+                <span class="parse-label">📝 原因</span>
+                <span id="parseReason" class="parse-value"></span>
+              </div>
+              <div class="parse-row">
+                <span class="parse-label">🔢 分值</span>
+                <span id="parseScore" class="parse-value"></span>
+              </div>
+            </div>
+            <div class="parse-actions">
+              <button id="confirmBtn" class="btn btn-primary" style="flex:1;"><i class="fas fa-check"></i> 确认加分</button>
+              <button id="cancelBtn" class="btn btn-white" style="flex:1;"><i class="fas fa-times"></i> 取消</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 操作记录 -->
+        <div class="voice-card">
+          <div class="voice-card-header"><i class="fas fa-history"></i> 操作记录</div>
+          <div class="voice-card-body">
+            <div id="historyList" class="history-list">
+              <div class="history-empty">暂无操作记录</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= Scripts ======= -->
+  <script src="js/api.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/features.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/voice.js"></script>
+</body>
+</html>

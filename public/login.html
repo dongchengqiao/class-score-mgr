@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录 · 班级积分管理</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Quicksand:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* ======= 登录页面专属样式 ======= */
+    body.login-page {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #fff;
+      margin: 0;
+    }
+    .login-container {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 420px;
+      padding: 20px;
+      animation: fadeInUp 0.5s ease;
+    }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .login-card {
+      background: var(--card-bg, #fff);
+      border-radius: 24px;
+      padding: 40px 36px 36px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+      text-align: center;
+    }
+    .login-icon {
+      font-size: 48px;
+      color: var(--primary, #667eea);
+      margin-bottom: 8px;
+    }
+    .login-card h1 {
+      font-size: 26px;
+      font-weight: 800;
+      margin-bottom: 4px;
+      color: var(--text, #333);
+    }
+    .login-subtitle {
+      color: var(--text-light, #888);
+      font-size: 14px;
+      margin-bottom: 28px;
+      line-height: 1.6;
+    }
+    .login-card .form-group {
+      text-align: left;
+      margin-bottom: 20px;
+    }
+    .login-card .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary, #555);
+      margin-bottom: 6px;
+    }
+    .login-card .form-control {
+      width: 100%;
+      padding: 14px 16px;
+      font-size: 16px;
+      border-radius: 12px;
+      border: 2px solid var(--border, #e0e0e0);
+      background: var(--input-bg, #f8f9fa);
+      transition: border-color 0.2s, box-shadow 0.2s;
+      box-sizing: border-box;
+    }
+    .login-card .form-control:focus {
+      border-color: var(--primary, #667eea);
+      box-shadow: 0 0 0 3px rgba(102,126,234,0.15);
+      outline: none;
+    }
+    .login-card .btn {
+      width: 100%;
+      padding: 14px;
+      font-size: 16px;
+      border-radius: 12px;
+      font-weight: 700;
+    }
+    .login-card .btn-primary {
+      margin-bottom: 0;
+    }
+    .login-card .btn-primary i {
+      margin-right: 8px;
+    }
+    .login-divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 20px 0;
+      color: var(--text-light, #aaa);
+      font-size: 13px;
+    }
+    .login-divider::before,
+    .login-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border, #e0e0e0);
+    }
+    .login-error {
+      display: none;
+      background: #fff0f0;
+      color: #e74c3c;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 14px;
+      margin-bottom: 16px;
+      border: 1px solid #ffd0d0;
+    }
+    .login-loading {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: var(--text-light, #888);
+      font-size: 14px;
+      margin-top: 12px;
+    }
+    .login-loading .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--border, #e0e0e0);
+      border-top-color: var(--primary, #667eea);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body class="theme-vibrant login-page">
+  <div class="login-container">
+    <div class="login-card">
+      <h1>班级积分管理</h1>
+      <p class="login-subtitle">请输入密码解锁全部管理功能<br>或以访客模式浏览查看</p>
+
+      <div id="loginError" class="login-error"></div>
+
+      <form id="loginForm" autocomplete="off">
+        <div class="form-group">
+          <label for="passwordInput"><i class="fas fa-lock"></i> 管理密码</label>
+          <input type="password" id="passwordInput" class="form-control" placeholder="输入密码..." required autofocus>
+        </div>
+        <button type="submit" id="unlockBtn" class="btn btn-primary">
+          <i class="fas fa-unlock"></i> 解锁
+        </button>
+      </form>
+
+      <div class="login-divider">或</div>
+
+      <button id="guestModeBtn" class="btn btn-white" style="width:100%;padding:14px;font-size:16px;border-radius:12px;">
+        <i class="fas fa-eye"></i> 访客模式（仅浏览）
+      </button>
+
+      <div id="loginLoading" class="login-loading">
+        <div class="spinner"></div>
+        <span>处理中，请稍候...</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+    // ==================== 登录页面逻辑 ====================
+
+    (function() {
+      'use strict';
+
+      const form = document.getElementById('loginForm');
+      const passwordInput = document.getElementById('passwordInput');
+      const unlockBtn = document.getElementById('unlockBtn');
+      const guestBtn = document.getElementById('guestModeBtn');
+      const errorEl = document.getElementById('loginError');
+      const loadingEl = document.getElementById('loginLoading');
+
+      /** 显示错误消息 */
+      function showError(msg) {
+        errorEl.textContent = msg;
+        errorEl.style.display = 'block';
+      }
+
+      /** 隐藏错误消息 */
+      function hideError() {
+        errorEl.style.display = 'none';
+      }
+
+      /** 显示/隐藏加载状态 */
+      function setLoading(loading) {
+        loadingEl.style.display = loading ? 'flex' : 'none';
+        unlockBtn.disabled = loading;
+        guestBtn.disabled = loading;
+        passwordInput.disabled = loading;
+      }
+
+      /** 跳转到首页 */
+      function goToIndex() {
+        const params = new URLSearchParams(window.location.search);
+        const redirect = params.get('redirect') || '/index.html';
+        location.href = redirect;
+      }
+
+      // ===== 检查是否已登录（管理员） =====
+      (function checkAuth() {
+        const token = API.getToken();
+        if (token) {
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            // 仅管理员 token 自动跳过登录页，访客 token 仍显示登录页
+            if (payload.role === 'admin' && payload.exp * 1000 > Date.now()) {
+              goToIndex();
+              return;
+            }
+          } catch (_) {}
+        }
+      })();
+
+      // ===== 密码解锁 =====
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        hideError();
+
+        const password = passwordInput.value.trim();
+        if (!password) {
+          showError('请输入密码');
+          return;
+        }
+
+        setLoading(true);
+        try {
+          const result = await API.verifyPassword(password);
+          if (result.success) {
+            if (result.token) API.setToken(result.token);
+            goToIndex();
+          } else {
+            showError(result.error || '密码错误');
+            setLoading(false);
+          }
+        } catch (err) {
+          showError(err.message || '密码错误，请重试');
+          setLoading(false);
+        }
+      });
+
+      // ===== 访客模式 =====
+      guestBtn.addEventListener('click', async () => {
+        hideError();
+        setLoading(true);
+        try {
+          const result = await API.getGuestToken();
+          if (result.token) API.setToken(result.token);
+          goToIndex();
+        } catch (err) {
+          showError(err.message || '获取访客令牌失败');
+          setLoading(false);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

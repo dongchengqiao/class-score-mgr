@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>语音加分 · 班级积分管理</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Quicksand:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/voice.css">
+</head>
+<body class="theme-vibrant">
+  <div class="bg-decoration">
+    <div class="bg-circle bg-circle-1"></div>
+    <div class="bg-circle bg-circle-2"></div>
+    <div class="bg-circle bg-circle-3"></div>
+    <div class="bg-circle bg-circle-4"></div>
+    <div class="border-pattern"></div>
+  </div>
+
+  <!-- 未登录遮罩 -->
+  <div id="authOverlay" class="auth-overlay" style="display:none;">
+    <div class="auth-overlay-content">
+      <div class="auth-overlay-icon"><i class="fas fa-lock"></i></div>
+      <h2>请先登录</h2>
+      <p>语音加分功能需要管理员权限，请先登录后再使用</p>
+      <a href="/index.html" class="btn btn-primary"><i class="fas fa-arrow-left"></i> 返回首页登录</a>
+    </div>
+  </div>
+
+  <div class="voice-container">
+    <!-- 顶部导航 -->
+    <header class="voice-header">
+      <div class="voice-logo"><i class="fas fa-microphone"></i> 语音加分</div>
+      <div class="voice-header-right">
+        <a href="/index.html" class="btn btn-sm btn-white"><i class="fas fa-arrow-left"></i> 返回首页</a>
+      </div>
+    </header>
+
+    <!-- 主内容 -->
+    <div class="voice-content">
+
+      <!-- 麦克风卡片 -->
+      <div class="voice-card">
+        <div class="voice-card-body voice-mic-section">
+          <div class="mic-area">
+            <button id="micBtn" class="mic-btn" title="点击开始语音识别（快捷键：空格）">
+              <i class="fas fa-microphone"></i>
+            </button>
+            <div id="micStatus" class="mic-status">点击麦克风开始</div>
+            <div class="mic-hint">说出指令：<strong>「姓名 原因 加/减 分数」</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 错误提示 -->
+      <div id="errorMsg" class="voice-error" style="display:none;"></div>
+
+      <!-- 识别文本卡片 -->
+      <div class="voice-card">
+        <div class="voice-card-header"><i class="fas fa-comment-dots"></i> 识别结果</div>
+        <div class="voice-card-body">
+          <div id="transcript" class="transcript-text">
+            <span class="transcript-empty">等待语音输入...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 解析确认卡片 -->
+      <div id="parseCard" class="voice-card">
+        <div class="voice-card-header"><i class="fas fa-clipboard-check"></i> 确认操作</div>
+        <div class="voice-card-body">
+          <div class="parse-grid">
+            <div class="parse-row">
+              <span class="parse-label">👤 学生</span>
+              <span id="parseName" class="parse-value"></span>
+            </div>
+            <div class="parse-row">
+              <span class="parse-label">📝 原因</span>
+              <span id="parseReason" class="parse-value"></span>
+            </div>
+            <div class="parse-row">
+              <span class="parse-label">🔢 分值</span>
+              <span id="parseScore" class="parse-value"></span>
+            </div>
+          </div>
+          <div class="parse-actions">
+            <button id="confirmBtn" class="btn btn-primary" style="flex:1;"><i class="fas fa-check"></i> 确认加分</button>
+            <button id="cancelBtn" class="btn btn-white" style="flex:1;"><i class="fas fa-times"></i> 取消</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 历史记录 -->
+      <div class="voice-card">
+        <div class="voice-card-header"><i class="fas fa-history"></i> 操作记录</div>
+        <div class="voice-card-body">
+          <div id="historyList" class="history-list">
+            <div class="history-empty">暂无操作记录</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/voice.js"></script>
+</body>
+</html>

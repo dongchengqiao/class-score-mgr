@@ -1,0 +1,810 @@
+// ============================================================
+// 管理后台 - 逻辑
+// ============================================================
+
+const Admin = {
+  unlocked: false,
+  unlockMode: 'unlock', // 'unlock' | 'setup'
+  rules: [],
+  shopItems: [],
+  students: [],
+
+  async init() {
+    // 检查密码状态，决定解锁模式
+    try {
+      const status = await API.getAuthStatus();
+      if (status.hasPassword) {
+        Admin.unlockMode = 'unlock';
+        document.getElementById('unlockIcon').className = 'fas fa-lock';
+        document.getElementById('unlockTitle').textContent = '管理员验证';
+        document.getElementById('unlockDesc').textContent = '请输入密码以访问管理后台';
+        document.getElementById('unlockPasswordGroup').style.display = 'block';
+        document.getElementById('unlockSetPwGroup').style.display = 'none';
+      } else {
+        Admin.unlockMode = 'setup';
+        document.getElementById('unlockIcon').className = 'fas fa-key';
+        document.getElementById('unlockTitle').textContent = '首次使用';
+        document.getElementById('unlockDesc').textContent = '尚未设置密码，请先设置一个管理密码';
+        document.getElementById('unlockPasswordGroup').style.display = 'none';
+        document.getElementById('unlockSetPwGroup').style.display = 'block';
+      }
+    } catch (e) {
+      console.error('检查密码状态失败:', e);
+      Admin.unlockMode = 'unlock';
+    }
+
+    // 解锁按钮
+    document.getElementById('adminUnlockBtn').addEventListener('click', () => Admin.handleUnlock());
+    document.getElementById('adminPasswordInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') Admin.handleUnlock();
+    });
+    document.getElementById('adminNewPwInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') Admin.handleUnlock();
+    });
+    document.getElementById('adminConfirmPwInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') Admin.handleUnlock();
+    });
+
+    // 密码管理
+    document.getElementById('setPasswordBtn').addEventListener('click', () => Admin.handleSetPassword());
+    document.getElementById('changePasswordBtn').addEventListener('click', () => Admin.handleChangePassword());
+    document.getElementById('cancelPasswordBtn').addEventListener('click', () => Admin.handleCancelPassword());
+
+    // 数据管理
+    document.getElementById('adminExportBtn').addEventListener('click', () => Admin.handleExport());
+    document.getElementById('adminImportBtn').addEventListener('click', () => document.getElementById('adminImportFile').click());
+    document.getElementById('adminImportFile').addEventListener('change', e => Admin.handleImport(e));
+    document.getElementById('adminExportReportBtn').addEventListener('click', () => Admin.handleExportReport());
+
+    // 设置管理
+    document.getElementById('addSettingBtn').addEventListener('click', () => Admin.handleAddSetting());
+
+    // 班级信息
+    document.getElementById('adminSaveClassInfoBtn').addEventListener('click', () => Admin.handleSaveClassInfo());
+    document.getElementById('adminClassName').addEventListener('keydown', e => {
+      if (e.key === 'Enter') Admin.handleSaveClassInfo();
+    });
+
+    // 积分清零
+    document.getElementById('adminResetAllPoints').addEventListener('click', () => Admin.handleResetAllPoints());
+
+    // 删除所有学生
+    document.getElementById('adminDeleteAllStudents').addEventListener('click', () => Admin.handleDeleteAllStudents());
+
+    // 规则管理
+    document.getElementById('adminAddRuleBtn').addEventListener('click', () => Admin.handleAddRule());
+    document.getElementById('adminRuleName').addEventListener('keydown', e => {
+      if (e.key === 'Enter') Admin.handleAddRule();
+    });
+    document.getElementById('adminRulePoints').addEventListener('keydown', e => {
+      if (e.key === 'Enter') Admin.handleAddRule();
+    });
+
+    // 学生管理
+    document.getElementById('adminAddStudentBtn').addEventListener('click', () => Admin.handleAddStudent());
+    document.getElementById('adminStudentNames').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && e.ctrlKey) Admin.handleAddStudent();
+    });
+
+    // 商店管理
+    document.getElementById('adminAddItemBtn').addEventListener('click', () => Admin.handleAddItem());
+    document.getElementById('adminItemName').addEventListener('keydown', e => {
+      if (e.key === 'Enter') Admin.handleAddItem();
+    });
+    document.getElementById('adminItemCost').addEventListener('keydown', e => {
+      if (e.key === 'Enter') Admin.handleAddItem();
+    });
+    document.getElementById('adminItemStock').addEventListener('keydown', e => {
+      if (e.key === 'Enter') Admin.handleAddItem();
+    });
+
+    // 设置默认日期范围（本月）
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    document.getElementById('reportStartDate').value = firstDay.toISOString().split('T')[0];
+    document.getElementById('reportEndDate').value = now.toISOString().split('T')[0];
+  },
+
+  async handleUnlock() {
+    if (Admin.unlockMode === 'setup') {
+      // 设置密码模式
+      const pw = document.getElementById('adminNewPwInput').value;
+      const confirm = document.getElementById('adminConfirmPwInput').value;
+      if (!pw) { Admin.showError('请输入新密码'); return; }
+      if (pw.length < 4) { Admin.showError('密码至少 4 个字符'); return; }
+      if (pw !== confirm) { Admin.showError('两次输入的密码不一致'); return; }
+
+      document.getElementById('unlockError').style.display = 'none';
+      try {
+        const res = await API.setPassword(pw);
+        if (res.success) {
+          if (res.token) API.setToken(res.token);
+          Admin.unlocked = true;
+          document.getElementById('unlockOverlay').style.display = 'none';
+          document.getElementById('adminContent').style.display = 'block';
+          document.getElementById('adminBadge').innerHTML = '<i class="fas fa-unlock"></i> 已验证';
+          document.getElementById('adminBadge').style.background = 'var(--accent2)';
+          Admin.loadData();
+        } else {
+          Admin.showError('设置密码失败');
+        }
+      } catch (err) {
+        Admin.showError('设置失败: ' + (err.message || err));
+      }
+      return;
+    }
+
+    // 解锁模式
+    const pw = document.getElementById('adminPasswordInput').value;
+    if (!pw) { Admin.showError('请输入密码'); return; }
+
+    document.getElementById('unlockError').style.display = 'none';
+
+    try {
+      const res = await API.verifyPassword(pw);
+      if (res.success) {
+        if (res.token) API.setToken(res.token);
+        Admin.unlocked = true;
+        document.getElementById('unlockOverlay').style.display = 'none';
+        document.getElementById('adminContent').style.display = 'block';
+        document.getElementById('adminBadge').innerHTML = '<i class="fas fa-unlock"></i> 已验证';
+        document.getElementById('adminBadge').style.background = 'var(--accent2)';
+        Admin.loadData();
+      } else {
+        Admin.showError('密码错误');
+      }
+    } catch (err) {
+      Admin.showError('验证失败: ' + (err.message || err));
+    }
+  },
+
+  showError(msg) {
+    const el = document.getElementById('unlockError');
+    el.textContent = msg;
+    el.style.display = 'block';
+  },
+
+  async loadData() {
+    document.getElementById('loadingOverlay').style.display = 'flex';
+    try {
+      await Promise.all([
+        Admin.loadStats(),
+        Admin.loadPasswordStatus(),
+        Admin.loadSettings(),
+        Admin.loadSystemInfo(),
+        Admin.loadRules(),
+        Admin.loadShopItems(),
+        Admin.loadStudents(),
+        Admin.loadClassInfo()
+      ]);
+      Admin.renderRules();
+      Admin.renderShop();
+      Admin.renderStudents();
+      Admin.setupRulesDragDrop();
+    } catch (err) {
+      console.error('加载数据失败:', err);
+    }
+    document.getElementById('loadingOverlay').style.display = 'none';
+  },
+
+  async loadClassInfo() {
+    try {
+      const settings = await API.request('GET', '/api/admin/settings');
+      document.getElementById('adminClassName').value = settings.class_name || '';
+    } catch (err) {
+      console.error('加载班级信息失败:', err);
+    }
+  },
+
+  // ==================== 统计 ====================
+
+  async loadStats() {
+    try {
+      const stats = await API.request('GET', '/api/admin/stats');
+
+      document.getElementById('statStudents').textContent = stats.students.total;
+      document.getElementById('statStudentsSub').textContent = `♂ ${stats.students.male} · ♀ ${stats.students.female}`;
+      document.getElementById('statGroups').textContent = stats.groups.total;
+      document.getElementById('statRules').textContent = stats.rules.total;
+      document.getElementById('statRulesSub').textContent = `+${stats.rules.positive} / ${stats.rules.negative}`;
+      document.getElementById('statShop').textContent = stats.shop.total;
+      document.getElementById('statTotalPoints').textContent = stats.totalPoints;
+      document.getElementById('statHistory').textContent = stats.totalHistory;
+      document.getElementById('statHealth').innerHTML = '<span style="font-size:16px;color:var(--accent2);">✓ 运行中</span>';
+
+      // 服务器时间
+      try {
+        const health = await API.request('GET', '/api/health');
+        document.getElementById('statServerTime').textContent = new Date(health.time).toLocaleString('zh-CN');
+      } catch (e) {
+        document.getElementById('statServerTime').textContent = '获取失败';
+      }
+
+      // 序列信息
+      if (stats.sequences) {
+        const seq = stats.sequences;
+        document.getElementById('seqInfo').textContent =
+          `学生=${seq.students}, 小组=${seq.groups}, 规则=${seq.rules}, 商品=${seq.shopItems}, 历史=${seq.history}`;
+      }
+    } catch (err) {
+      console.error('加载统计失败:', err);
+    }
+  },
+
+  // ==================== 密码管理 ====================
+
+  async loadPasswordStatus() {
+    try {
+      const res = await API.getAuthStatus();
+      const el = document.getElementById('passwordStatus');
+      if (res.hasPassword) {
+        el.innerHTML = '<i class="fas fa-check-circle" style="color:var(--accent2);"></i> 已设置密码保护';
+      } else {
+        el.innerHTML = '<i class="fas fa-exclamation-circle" style="color:var(--accent1);"></i> 未设置密码';
+      }
+    } catch (err) {
+      console.error('加载密码状态失败:', err);
+    }
+  },
+
+  async handleSetPassword() {
+    const newPw = document.getElementById('newPassword').value;
+    if (!newPw) { alert('请输入新密码'); return; }
+    try {
+      const res = await API.setPassword(newPw);
+      if (res.success) {
+        if (res.token) API.setToken(res.token);
+        alert('密码设置成功！');
+        document.getElementById('newPassword').value = '';
+        Admin.loadPasswordStatus();
+      }
+    } catch (err) {
+      alert('设置失败: ' + (err.message || err));
+    }
+  },
+
+  async handleChangePassword() {
+    const oldPw = document.getElementById('oldPassword').value;
+    const newPw = document.getElementById('newPassword').value;
+    if (!oldPw || !newPw) { alert('请填写当前密码和新密码'); return; }
+    try {
+      const res = await API.changePassword(oldPw, newPw);
+      if (res.success) {
+        alert('密码修改成功！');
+        document.getElementById('oldPassword').value = '';
+        document.getElementById('newPassword').value = '';
+      }
+    } catch (err) {
+      alert('修改失败: ' + (err.message || err));
+    }
+  },
+
+  async handleCancelPassword() {
+    const pw = document.getElementById('oldPassword').value;
+    if (!pw) { alert('请输入当前密码以取消密码保护'); return; }
+    if (!confirm('确定要取消密码保护吗？任何人都可以访问此系统。')) return;
+    try {
+      const res = await API.cancelPassword(pw);
+      if (res.success) {
+        alert('已取消密码保护！');
+        document.getElementById('oldPassword').value = '';
+        Admin.loadPasswordStatus();
+      }
+    } catch (err) {
+      alert('取消失败: ' + (err.message || err));
+    }
+  },
+
+  // ==================== 数据管理 ====================
+
+  async handleExport() {
+    try {
+      const data = await API.exportData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `class-data-backup-${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('导出失败: ' + (err.message || err));
+    }
+  },
+
+  async handleImport(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (!confirm(`确定要导入数据吗？当前所有数据将被替换！\n文件大小: ${(text.length / 1024).toFixed(1)}KB`)) return;
+      await API.importData(data);
+      alert('数据导入成功！');
+      Admin.loadData();
+    } catch (err) {
+      alert('导入失败: ' + (err.message || err));
+    }
+    e.target.value = '';
+  },
+
+  async handleExportReport() {
+    const startDate = document.getElementById('reportStartDate').value;
+    const endDate = document.getElementById('reportEndDate').value;
+    if (!startDate || !endDate) { alert('请选择日期范围'); return; }
+
+    try {
+      const report = await API.exportReport(startDate, endDate);
+      Admin.downloadExcelReport(report, startDate, endDate);
+    } catch (err) {
+      alert('导出报表失败: ' + (err.message || err));
+    }
+  },
+
+  downloadExcelReport(report, startDate, endDate) {
+    if (typeof XLSX === 'undefined') {
+      alert('XLSX 库未加载，请检查网络连接');
+      return;
+    }
+
+    // 学生明细表
+    const studentRows = report.studentStats.map((s, i) => ({
+      '排名': i + 1,
+      '姓名': s.name,
+      '净积分': s.netPoints,
+      '加分': s.positivePoints,
+      '减分': s.negativePoints,
+      '操作次数': s.history.length
+    }));
+
+    const ws1 = XLSX.utils.json_to_sheet(studentRows);
+    ws1['!cols'] = [{ wch: 6 }, { wch: 10 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 10 }];
+
+    // 小组明细表
+    const groupRows = (report.groupStats || []).map(g => ({
+      '小组名称': g.name,
+      '净积分': g.netPoints,
+      '加分': g.positivePoints,
+      '减分': g.negativePoints,
+      '成员数': g.memberCount
+    }));
+
+    const ws2 = XLSX.utils.json_to_sheet(groupRows);
+    ws2['!cols'] = [{ wch: 14 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws1, '学生积分明细');
+    XLSX.utils.book_append_sheet(wb, ws2, '小组积分明细');
+
+    XLSX.writeFile(wb, `积分报表_${startDate}_至_${endDate}.xlsx`);
+  },
+
+  // ==================== 设置管理 ====================
+
+  async loadSettings() {
+    try {
+      const settings = await API.request('GET', '/api/admin/settings');
+      const container = document.getElementById('settingsList');
+
+      const keys = Object.keys(settings);
+      if (keys.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-light);">暂无自定义设置</p>';
+        return;
+      }
+
+      // 过滤掉密码哈希（不显示）
+      let html = '<table class="settings-table"><thead><tr><th>键名</th><th>值</th><th>操作</th></tr></thead><tbody>';
+      for (const key of keys) {
+        if (key === 'app_password_hash' || key === 'school_name') continue;
+        let val = settings[key];
+        if (typeof val === 'object') val = JSON.stringify(val);
+        html += `<tr>
+          <td><code>${key}</code></td>
+          <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;">${val}</td>
+          <td><button class="btn btn-sm btn-danger" onclick="Admin.handleDeleteSetting('${key}')"><i class="fas fa-trash"></i></button></td>
+        </tr>`;
+      }
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    } catch (err) {
+      console.error('加载设置失败:', err);
+    }
+  },
+
+  async handleAddSetting() {
+    const key = document.getElementById('settingKey').value.trim();
+    const value = document.getElementById('settingValue').value.trim();
+    if (!key) { alert('请输入设置键名'); return; }
+
+    try {
+      const data = await API.request('PUT', `/api/admin/settings/${encodeURIComponent(key)}`, { value });
+      if (data.success) {
+        document.getElementById('settingKey').value = '';
+        document.getElementById('settingValue').value = '';
+        Admin.loadSettings();
+      } else {
+        alert('添加失败: ' + (data.error || '未知错误'));
+      }
+    } catch (err) {
+      alert('添加失败: ' + (err.message || err));
+    }
+  },
+
+  async handleDeleteSetting(key) {
+    if (!confirm(`确定删除设置 "${key}" 吗？`)) return;
+    try {
+      const data = await API.request('DELETE', `/api/admin/settings/${encodeURIComponent(key)}`);
+      if (data.success) Admin.loadSettings();
+    } catch (err) {
+      alert('删除失败: ' + (err.message || err));
+    }
+  },
+
+  async handleSaveClassInfo() {
+    const className = document.getElementById('adminClassName').value.trim();
+    const statusEl = document.getElementById('classInfoStatus');
+
+    try {
+      await API.request('PUT', '/api/admin/settings/class_name', { value: className });
+      statusEl.style.display = 'flex';
+      statusEl.innerHTML = '<i class="fas fa-check-circle" style="color:var(--accent2);"></i> 班级信息已保存！';
+      setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
+    } catch (err) {
+      statusEl.style.display = 'flex';
+      statusEl.innerHTML = '<i class="fas fa-exclamation-circle" style="color:var(--primary);"></i> 保存失败: ' + (err.message || err);
+    }
+  },
+
+  // ==================== 危险操作 ====================
+
+  async handleResetAllPoints() {
+    if (!confirm('⚠️ 积分清零：确定要将所有学生的积分和历史记录清零吗？此操作不可撤销！')) return;
+    if (!confirm('二次确认：这将清除所有学生的积分和积分历史记录，确定继续吗？')) return;
+    try {
+      const res = await API.resetAllPoints();
+      alert(res.message || '积分已清零！');
+      Admin.loadData();
+    } catch (err) {
+      alert('清零失败: ' + (err.message || err));
+    }
+  },
+
+  async handleDeleteAllStudents() {
+    if (!confirm('⚠️ 警告：此操作将删除所有学生数据和小组数据，不可恢复！')) return;
+    if (!confirm('二次确认：确定要删除所有学生和小组数据吗？')) return;
+    try {
+      await API.deleteAllStudents();
+      // 删除所有小组
+      const groups = await API.getGroups();
+      for (const g of groups) await API.deleteGroup(g.id);
+      alert('已删除所有学生和小组数据！');
+      Admin.loadData();
+    } catch (err) {
+      alert('删除失败: ' + (err.message || err));
+    }
+  },
+
+  // ==================== 规则管理 ====================
+
+  async loadRules() {
+    try {
+      Admin.rules = await API.getRules();
+    } catch (err) {
+      console.error('加载规则失败:', err);
+    }
+  },
+
+  renderRules() {
+    const el = document.getElementById('adminRulesList');
+    if (!el) return;
+    el.innerHTML = '';
+    Admin.rules.forEach(rule => {
+      const positive = rule.points > 0;
+      const item = document.createElement('div');
+      item.className = `rule-item ${positive ? 'positive' : 'negative'}`;
+      item.dataset.id = rule.id;
+      item.draggable = true;
+      item.innerHTML = `
+        <span class="rule-drag-handle"><i class="fas fa-grip-vertical"></i></span>
+        <div class="rule-text">${rule.name}</div>
+        <div class="rule-points ${positive ? 'positive' : 'negative'}">${positive ? '+' : ''}${rule.points}</div>
+        <div class="rule-actions">
+          <button class="btn btn-icon btn-secondary edit-rule-btn" data-id="${rule.id}" title="编辑规则"><i class="fas fa-edit"></i></button>
+          <button class="btn btn-icon btn-danger delete-rule-btn" data-id="${rule.id}" title="删除规则"><i class="fas fa-trash"></i></button>
+        </div>`;
+      el.appendChild(item);
+    });
+    // 绑定事件
+    el.querySelectorAll('.edit-rule-btn').forEach(btn => {
+      btn.onclick = () => Admin.showEditRuleModal(parseInt(btn.dataset.id));
+    });
+    el.querySelectorAll('.delete-rule-btn').forEach(btn => {
+      btn.onclick = async () => {
+        if (!confirm('确定要删除这条规则吗？')) return;
+        await API.deleteRule(parseInt(btn.dataset.id));
+        await Admin.loadRules();
+        Admin.renderRules();
+      };
+    });
+  },
+
+  async handleAddRule() {
+    const name = document.getElementById('adminRuleName').value.trim();
+    const points = parseInt(document.getElementById('adminRulePoints').value);
+    if (!name || isNaN(points)) { alert('请填写规则名称和分值'); return; }
+    try {
+      await API.addRule(name, points);
+      document.getElementById('adminRuleName').value = '';
+      document.getElementById('adminRulePoints').value = '';
+      await Admin.loadRules();
+      Admin.renderRules();
+    } catch (err) {
+      alert('添加规则失败: ' + (err.message || err));
+    }
+  },
+
+  showEditRuleModal(ruleId) {
+    const rule = Admin.rules.find(r => r.id === ruleId);
+    if (!rule) return;
+    const html = `<h3>编辑规则</h3>
+      <div class="form-group"><label class="form-label">规则名称:</label><input type="text" id="editRuleName" class="form-control" value="${rule.name}"></div>
+      <div class="form-group"><label class="form-label">分值:</label><input type="number" id="editRulePoints" class="form-control" value="${rule.points}"></div>
+      <div class="modal-footer"><button id="saveRuleChanges" class="btn btn-primary">保存</button></div>`;
+    // 使用全局 UI 的弹窗
+    if (typeof UI !== 'undefined' && UI.openModal) {
+      UI.openModal(html);
+    } else {
+      // Fallback: 用简单确认
+      const newName = prompt('规则名称:', rule.name);
+      if (!newName) return;
+      const newPoints = parseInt(prompt('分值:', rule.points));
+      if (isNaN(newPoints)) return;
+      Admin.saveEditRule(ruleId, newName, newPoints);
+      return;
+    }
+    document.getElementById('saveRuleChanges').onclick = () => {
+      const name = document.getElementById('editRuleName').value.trim();
+      const points = parseInt(document.getElementById('editRulePoints').value);
+      if (!name || isNaN(points)) { alert('请输入有效的信息！'); return; }
+      Admin.saveEditRule(ruleId, name, points);
+    };
+  },
+
+  async saveEditRule(ruleId, name, points) {
+    try {
+      await API.updateRule(ruleId, { name, points });
+      await Admin.loadRules();
+      Admin.renderRules();
+      if (typeof UI !== 'undefined' && UI.closeModal) UI.closeModal();
+    } catch (err) {
+      alert('保存失败: ' + (err.message || err));
+    }
+  },
+
+  // ==================== 商店管理 ====================
+
+  async loadShopItems() {
+    try {
+      Admin.shopItems = await API.getShopItems();
+    } catch (err) {
+      console.error('加载商品失败:', err);
+    }
+  },
+
+  renderShop() {
+    const el = document.getElementById('adminShopItems');
+    if (!el) return;
+    el.innerHTML = '';
+    Admin.shopItems.forEach(item => {
+      const div = document.createElement('div');
+      div.className = 'shop-item';
+      div.innerHTML = `
+        <button class="edit-shop-item-btn" data-id="${item.id}" title="编辑商品"><i class="fas fa-edit"></i></button>
+        <div class="shop-item-name">${item.name}</div>
+        <div class="shop-item-cost">${item.cost} 积分</div>
+        <div class="shop-item-stock">库存: ${item.stock}</div>
+        <div class="shop-item-actions">
+          <button class="btn btn-sm btn-danger delete-item-btn" data-id="${item.id}"><i class="fas fa-trash"></i> 删除</button>
+        </div>`;
+      el.appendChild(div);
+    });
+    el.querySelectorAll('.edit-shop-item-btn').forEach(btn => {
+      btn.onclick = () => Admin.showEditShopItemModal(parseInt(btn.dataset.id));
+    });
+    el.querySelectorAll('.delete-item-btn').forEach(btn => {
+      btn.onclick = async () => {
+        if (!confirm('确定要删除这个商品吗？')) return;
+        await API.deleteShopItem(parseInt(btn.dataset.id));
+        await Admin.loadShopItems();
+        Admin.renderShop();
+      };
+    });
+  },
+
+  async handleAddItem() {
+    const name = document.getElementById('adminItemName').value.trim();
+    const cost = parseInt(document.getElementById('adminItemCost').value);
+    const stock = parseInt(document.getElementById('adminItemStock').value);
+    if (!name || isNaN(cost) || isNaN(stock)) { alert('请填写完整的商品信息'); return; }
+    try {
+      await API.addShopItem(name, cost, stock);
+      document.getElementById('adminItemName').value = '';
+      document.getElementById('adminItemCost').value = '';
+      document.getElementById('adminItemStock').value = '';
+      await Admin.loadShopItems();
+      Admin.renderShop();
+    } catch (err) {
+      alert('添加商品失败: ' + (err.message || err));
+    }
+  },
+
+  showEditShopItemModal(itemId) {
+    const item = Admin.shopItems.find(i => i.id === itemId);
+    if (!item) return;
+    const html = `<h3>编辑商品</h3>
+      <div class="form-group"><label class="form-label">商品名称:</label><input type="text" id="editItemName" class="form-control" value="${item.name}"></div>
+      <div class="form-group"><label class="form-label">所需积分:</label><input type="number" id="editItemCost" class="form-control" value="${item.cost}"></div>
+      <div class="form-group"><label class="form-label">库存:</label><input type="number" id="editItemStock" class="form-control" value="${item.stock}"></div>
+      <div class="modal-footer"><button id="saveItemChanges" class="btn btn-primary">保存</button></div>`;
+    if (typeof UI !== 'undefined' && UI.openModal) {
+      UI.openModal(html);
+    } else {
+      const newName = prompt('商品名称:', item.name);
+      if (!newName) return;
+      const newCost = parseInt(prompt('所需积分:', item.cost));
+      if (isNaN(newCost)) return;
+      const newStock = parseInt(prompt('库存数量:', item.stock));
+      if (isNaN(newStock)) return;
+      Admin.saveEditShopItem(itemId, newName, newCost, newStock);
+      return;
+    }
+    document.getElementById('saveItemChanges').onclick = () => {
+      const name = document.getElementById('editItemName').value.trim();
+      const cost = parseInt(document.getElementById('editItemCost').value);
+      const stock = parseInt(document.getElementById('editItemStock').value);
+      if (!name || isNaN(cost) || isNaN(stock)) { alert('请输入有效的信息！'); return; }
+      Admin.saveEditShopItem(itemId, name, cost, stock);
+    };
+  },
+
+  async saveEditShopItem(itemId, name, cost, stock) {
+    try {
+      await API.updateShopItem(itemId, { name, cost, stock });
+      await Admin.loadShopItems();
+      Admin.renderShop();
+      if (typeof UI !== 'undefined' && UI.closeModal) UI.closeModal();
+    } catch (err) {
+      alert('保存失败: ' + (err.message || err));
+    }
+  },
+
+  // ==================== 学生管理 ====================
+
+  async loadStudents() {
+    try {
+      Admin.students = await API.getStudents();
+    } catch (err) {
+      console.error('加载学生列表失败:', err);
+    }
+  },
+
+  renderStudents() {
+    const el = document.getElementById('adminStudentsList');
+    if (!el) return;
+
+    if (!Admin.students.length) {
+      el.innerHTML = '<div class="admin-student-empty">暂无学生，请添加</div>';
+      return;
+    }
+
+    el.innerHTML = Admin.students.map(s => `
+      <div class="admin-student-item" data-id="${s.id}">
+        <div class="admin-student-avatar ${s.gender}">${(s.name || '?').charAt(0)}</div>
+        <span class="admin-student-name">${s.name}</span>
+        <span class="admin-student-points">${s.total_points || 0} 分</span>
+        <button class="admin-student-delete-btn" data-id="${s.id}" title="删除学生"><i class="fas fa-times"></i></button>
+      </div>
+    `).join('');
+
+    // 绑定删除事件
+    el.querySelectorAll('.admin-student-delete-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const id = parseInt(btn.dataset.id);
+        const student = Admin.students.find(s => s.id === id);
+        if (!student) return;
+        if (!confirm(`确定要删除学生 ${student.name} 吗？此操作不可撤销！`)) return;
+        try {
+          await API.deleteStudent(id);
+          await Admin.loadStudents();
+          Admin.renderStudents();
+          // 刷新统计
+          Admin.loadStats();
+        } catch (err) {
+          alert('删除失败: ' + (err.message || err));
+        }
+      });
+    });
+  },
+
+  async handleAddStudent() {
+    const text = document.getElementById('adminStudentNames').value.trim();
+    const gender = document.querySelector('input[name="adminGender"]:checked')?.value || 'male';
+    if (!text) { alert('请输入学生姓名'); return; }
+    const names = text.split('\n').filter(n => n.trim());
+    if (!names.length) { alert('请输入有效的学生姓名'); return; }
+    try {
+      await API.addStudents(names, gender);
+      document.getElementById('adminStudentNames').value = '';
+      await Admin.loadStudents();
+      Admin.renderStudents();
+      Admin.loadStats();
+    } catch (err) {
+      alert('添加失败: ' + (err.message || err));
+    }
+  },
+
+  setupRulesDragDrop() {
+    const rulesList = document.getElementById('adminRulesList');
+    if (!rulesList) return;
+    let draggedRule = null;
+
+    rulesList.addEventListener('dragstart', e => {
+      if (e.target.closest('.rule-item')) {
+        draggedRule = e.target.closest('.rule-item');
+        setTimeout(() => draggedRule.classList.add('dragging'), 0);
+      }
+    });
+
+    rulesList.addEventListener('dragend', async () => {
+      if (draggedRule) {
+        draggedRule.classList.remove('dragging');
+        const items = [...document.querySelectorAll('#adminRulesList .rule-item')];
+        const order = items.map((item, i) => ({
+          id: parseInt(item.dataset.id),
+          sort_order: i + 1
+        }));
+        try {
+          await API.reorderRules(order);
+          await Admin.loadRules();
+          Admin.renderRules();
+        } catch (err) {
+          console.error('规则排序保存失败:', err);
+        }
+        draggedRule = null;
+      }
+    });
+
+    rulesList.addEventListener('dragover', e => {
+      e.preventDefault();
+      if (!draggedRule) return;
+      const afterElement = Admin.getDragAfterElement(rulesList, e.clientY);
+      if (afterElement == null) {
+        rulesList.appendChild(draggedRule);
+      } else {
+        rulesList.insertBefore(draggedRule, afterElement);
+      }
+    });
+  },
+
+  getDragAfterElement(container, y) {
+    const draggableElements = [...container.querySelectorAll('.rule-item:not(.dragging)')];
+    return draggableElements.reduce((closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = y - box.top - box.height / 2;
+      if (offset < 0 && offset > closest.offset) {
+        return { offset, element: child };
+      }
+      return closest;
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+  },
+
+  // ==================== 系统信息 ====================
+
+  async loadSystemInfo() {
+    // 已整合到 loadStats 中
+  }
+};
+
+// 启动
+document.addEventListener('DOMContentLoaded', () => Admin.init());
