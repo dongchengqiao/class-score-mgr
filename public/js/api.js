@@ -195,25 +195,53 @@ const API = {
     return this.request('GET', '/api/auth/status');
   },
 
+  /** 验证管理员密码 → admin token（可访问管理后台） */
   verifyPassword(password) {
     return this.request('POST', '/api/auth/verify', { password });
   },
 
-  /** 获取访客 Token */
-  getGuestToken() {
-    return this.request('POST', '/api/auth/guest-token');
+  /** 验证用户密码 → user token（可加减分，不可访问管理后台） */
+  verifyUserPassword(password) {
+    return this.request('POST', '/api/auth/verify-user', { password });
+  },
+
+  /** 解析当前 token 的角色：'admin' | 'user' | 'guest' | null */
+  getRole() {
+    const token = this.getToken();
+    if (!token) return null;
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      return payload.role || null;
+    } catch (e) {
+      return null;
+    }
   },
 
   setPassword(password) {
     return this.request('POST', '/api/auth/set-password', { password });
   },
 
-  changePassword(oldPassword, newPassword) {
-    return this.request('POST', '/api/auth/change-password', { oldPassword, newPassword });
+  changePassword(newPassword) {
+    return this.request('POST', '/api/auth/change-password', { newPassword });
   },
 
-  cancelPassword(password) {
-    return this.request('POST', '/api/auth/cancel-password', { password });
+  cancelPassword() {
+    return this.request('POST', '/api/auth/cancel-password');
+  },
+
+  /** 设置用户密码 */
+  setUserPassword(password) {
+    return this.request('POST', '/api/auth/set-user-password', { password });
+  },
+
+  /** 修改用户密码（无需旧密码） */
+  changeUserPassword(newPassword) {
+    return this.request('POST', '/api/auth/change-user-password', { newPassword });
+  },
+
+  /** 取消用户密码 */
+  cancelUserPassword() {
+    return this.request('POST', '/api/auth/cancel-user-password');
   },
 
   // ==================== 数据 ====================

@@ -875,14 +875,14 @@ const App = {
     this.bindEvents();
     UI.loadTheme();
     UI.setupDropZones();
-    Auth.updateButton();
     // loadTheme() 会重置 className，若有 guest-mode 需重新添加
     if (Auth.isGuest) document.body.classList.add('guest-mode');
   },
 
   async loadClassInfo() {
     try {
-      const settings = await API.request('GET', '/api/admin/settings');
+      const data = await API.getSettings();
+      const settings = data.settings || data;
       if (settings.class_name) {
         const watermark = document.querySelector('.author-watermark');
         if (watermark) {
@@ -928,9 +928,6 @@ const App = {
 
     // 音乐控制
     document.getElementById('musicToggle')?.addEventListener('click', () => UI.toggleMusic());
-
-    // 密码
-    document.getElementById('passwordBtn')?.addEventListener('click', () => Auth.handleButtonClick());
 
     // 语音加分
     document.getElementById('goToVoice')?.addEventListener('click', () => {

@@ -245,22 +245,26 @@ const RollCall = {
   }
 };
 
-// ==================== 密码管理 ====================
+// ==================== 登录状态管理 ====================
 const Auth = {
-  isGuest: false,
-  isAuthenticated: false,
+  isGuest: false,          // 访客模式（无 Token，仅浏览）
+  isAuthenticated: false,  // 已登录（admin 或 user token）
+  isAdmin: false,          // 管理员（admin token）
 
   /** 切换登录/退出按钮的显示状态 */
   updateAuthButtons() {
     const loginBtn = document.getElementById('loginBtn');
     const logoutBtn = document.getElementById('logoutBtn');
+    const adminLoginBtn = document.getElementById('adminLoginBtn');
     if (loginBtn) loginBtn.style.display = this.isGuest ? 'inline-flex' : 'none';
     if (logoutBtn) logoutBtn.style.display = this.isAuthenticated ? 'inline-flex' : 'none';
+    // 用户（非管理员）登录时，主页显示"用管理员密码登录"按钮
+    if (adminLoginBtn) adminLoginBtn.style.display = (this.isAuthenticated && !this.isAdmin) ? 'inline-flex' : 'none';
   },
 
   /** 退出登录 */
   handleLogout() {
-    UI.confirm('退出登录', '确定要退出登录吗？所有管理功能将被锁定。', () => {
+    UI.confirm('退出登录', '确定要退出登录吗？', () => {
       API.clearToken();
       location.href = '/login.html';
     });
@@ -288,10 +292,15 @@ const Auth = {
         location.href = '/login.html';
       });
       document.getElementById('logoutBtn')?.addEventListener('click', () => Auth.handleLogout());
+      // 主页"用管理员密码登录"按钮 → 跳转登录页
+      document.getElementById('adminLoginBtn')?.addEventListener('click', () => {
+        location.href = '/login.html';
+      });
 
       if (!status.hasPassword) {
-        // 未设置密码 → 无需登录
+        // 未设置管理员密码 → 视为管理员，无需登录
         this.isAuthenticated = true;
+        this.isAdmin = true;
         Auth.updateAuthButtons();
         if (appContainer) appContainer.style.display = 'block';
         return;
@@ -307,21 +316,27 @@ const Auth = {
             await API.request('GET', '/api/students?limit=1');
             API.setToken(savedToken);
             if (payload.role === 'admin') {
+              // 管理员
               this.isAuthenticated = true;
+              this.isAdmin = true;
               this.isGuest = false;
               Auth.updateAuthButtons();
               if (appContainer) appContainer.style.display = 'block';
               return;
-            } else if (payload.role === 'guest') {
-              this.isGuest = true;
-              this.isAuthenticated = false;
+            } else if (payload.role === 'user') {
+              // 用户（可加减分，不可访问管理后台）
+              this.isAuthenticated = true;
+              this.isAdmin = false;
+              this.isGuest = false;
               Auth.updateAuthButtons();
               if (appContainer) appContainer.style.display = 'block';
-              document.body.classList.add('guest-mode');
               return;
+            } else {
+              // guest token（旧版）→ 清除，按访客处理
+              API.clearToken();
             }
           } catch (_) {
-            // Token 无效或过期 → 清除后跳转到登录页
+            // Token 无效或过期 → 清除
             API.clearToken();
           }
         } else {
@@ -329,98 +344,27 @@ const Auth = {
         }
       }
 
-      // 无有效 Token → 跳转到登录页
-      location.href = '/login.html';
+      // 无有效 Token → 访客模式（无 token，仅浏览）
+      this.isGuest = true;
+      this.isAuthenticated = false;
+      this.isAdmin = false;
+      Auth.updateAuthButtons();
+      if (appContainer) appContainer.style.display = 'block';
+      document.body.classList.add('guest-mode');
     } catch (e) {
       Auth.isAuthenticated = true;
+      Auth.isAdmin = true;
       document.querySelector('.app-container').style.display = 'block';
     }
   },
 
-  /** 检查是否有操作权限 */
+  /** 检查是否有操作权限（访客返回 false） */
   requireAuth() {
     if (this.isGuest) {
-      UI.alert('访客模式不能进行此操作，请输入密码解锁全部功能');
+      UI.alert('访客模式不能进行此操作，请先登录');
       return false;
     }
     return true;
-  },
-
-  handleButtonClick() {
-    if (localStorage.getItem('app_password_hash')) {
-      Auth.showChangeModal();
-    } else {
-      Auth.showSetModal();
-    }
-  },
-
-  async showSetModal() {
-    const modal = document.getElementById('setPasswordModal');
-    modal.style.display = 'block';
-    document.getElementById('setPasswordForm').onsubmit = async (e) => {
-      e.preventDefault();
-      const pw1 = document.getElementById('newPassword1').value;
-      const pw2 = document.getElementById('newPassword2').value;
-      if (!pw1 || !pw2) { alert('密码不能为空！'); return; }
-      if (pw1 !== pw2) { alert('两次输入的密码不一致！'); return; }
-      try {
-        // 先在 localStorage 存一份用于前端判断
-        const encoder = new TextEncoder();
-        const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(pw1));
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const localHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        localStorage.setItem('app_password_hash', localHash);
-        const result = await API.setPassword(pw1);
-        // 保存返回的 Token，自动登录
-        if (result.token) API.setToken(result.token);
-        alert('密码设置成功！');
-        modal.style.display = 'none';
-        Auth.updateButton();
-      } catch (err) { alert('设置失败: ' + err.message); }
-    };
-  },
-
-  async showChangeModal() {
-    const modal = document.getElementById('changePasswordModal');
-    modal.style.display = 'block';
-    document.getElementById('changePasswordForm').onsubmit = async (e) => {
-      e.preventDefault();
-      const oldPw = document.getElementById('oldPassword').value;
-      const pw1 = document.getElementById('changeNewPassword1').value;
-      const pw2 = document.getElementById('changeNewPassword2').value;
-      if (!oldPw || !pw1 || !pw2) { alert('所有字段都不能为空！'); return; }
-      if (pw1 !== pw2) { alert('两次输入的新密码不一致！'); return; }
-      try {
-        await API.changePassword(oldPw, pw1);
-        const encoder = new TextEncoder();
-        const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(pw1));
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const localHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        localStorage.setItem('app_password_hash', localHash);
-        alert('密码修改成功！');
-        modal.style.display = 'none';
-      } catch (err) { alert('修改失败: ' + err.message); }
-    };
-    document.getElementById('cancelPasswordBtn').onclick = async () => {
-      const oldPw = document.getElementById('oldPassword').value;
-      if (!oldPw) { alert('请输入密码验证身份！'); return; }
-      try {
-        await API.cancelPassword(oldPw);
-        localStorage.removeItem('app_password_hash');
-        alert('密码保护已取消！');
-        modal.style.display = 'none';
-        Auth.updateButton();
-      } catch (err) { alert('取消失败: ' + err.message); }
-    };
-  },
-
-  updateButton() {
-    const btn = document.getElementById('passwordBtn');
-    if (localStorage.getItem('app_password_hash')) {
-      btn.innerHTML = '<i class="fas fa-key"></i> 修改密码';
-    } else {
-      btn.innerHTML = '<i class="fas fa-key"></i> 设置密码';
-    }
   }
 };
 

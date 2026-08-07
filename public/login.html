@@ -117,6 +117,33 @@
       margin-bottom: 16px;
       border: 1px solid #ffd0d0;
     }
+    .login-tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 22px;
+    }
+    .login-tab {
+      flex: 1;
+      padding: 11px 0;
+      font-size: 15px;
+      font-weight: 700;
+      border-radius: 12px;
+      border: 2px solid var(--border, #e0e0e0);
+      background: var(--input-bg, #f8f9fa);
+      color: var(--text-secondary, #555);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .login-tab i { margin-right: 6px; }
+    .login-tab.active {
+      border-color: var(--primary, #667eea);
+      background: var(--primary, #667eea);
+      color: #fff;
+    }
+    .login-tab:not(.active):hover {
+      border-color: var(--primary, #667eea);
+      color: var(--primary, #667eea);
+    }
     .login-loading {
       display: none;
       align-items: center;
@@ -141,17 +168,23 @@
   <div class="login-container">
     <div class="login-card">
       <h1>班级积分管理</h1>
-      <p class="login-subtitle">请输入密码解锁全部管理功能<br>或以访客模式浏览查看</p>
+      <p class="login-subtitle">选择身份登录<br>管理员可管理后台 · 用户可加减分 · 访客仅浏览</p>
 
       <div id="loginError" class="login-error"></div>
 
+      <!-- 身份切换 -->
+      <div class="login-tabs">
+        <button type="button" class="login-tab active" data-login-type="admin"><i class="fas fa-shield-alt"></i> 管理员</button>
+        <button type="button" class="login-tab" data-login-type="user"><i class="fas fa-user-check"></i> 用户</button>
+      </div>
+
       <form id="loginForm" autocomplete="off">
         <div class="form-group">
-          <label for="passwordInput"><i class="fas fa-lock"></i> 管理密码</label>
+          <label id="passwordLabel" for="passwordInput"><i class="fas fa-lock"></i> 管理员密码</label>
           <input type="password" id="passwordInput" class="form-control" placeholder="输入密码..." required autofocus>
         </div>
         <button type="submit" id="unlockBtn" class="btn btn-primary">
-          <i class="fas fa-unlock"></i> 解锁
+          <i class="fas fa-unlock"></i> 登录
         </button>
       </form>
 
@@ -177,10 +210,37 @@
 
       const form = document.getElementById('loginForm');
       const passwordInput = document.getElementById('passwordInput');
+      const passwordLabel = document.getElementById('passwordLabel');
       const unlockBtn = document.getElementById('unlockBtn');
       const guestBtn = document.getElementById('guestModeBtn');
       const errorEl = document.getElementById('loginError');
       const loadingEl = document.getElementById('loginLoading');
+      const tabs = document.querySelectorAll('.login-tab');
+
+      // 当前登录类型: 'admin' | 'user'
+      let loginType = 'admin';
+
+      /** 切换身份 Tab */
+      function switchLoginType(type) {
+        loginType = type;
+        tabs.forEach(t => t.classList.toggle('active', t.dataset.loginType === type));
+        if (type === 'admin') {
+          passwordLabel.innerHTML = '<i class="fas fa-lock"></i> 管理员密码';
+          passwordInput.placeholder = '输入管理员密码...';
+          unlockBtn.innerHTML = '<i class="fas fa-shield-alt"></i> 管理员登录';
+        } else {
+          passwordLabel.innerHTML = '<i class="fas fa-user-check"></i> 用户密码';
+          passwordInput.placeholder = '输入用户密码...';
+          unlockBtn.innerHTML = '<i class="fas fa-user-check"></i> 用户登录';
+        }
+        hideError();
+        passwordInput.value = '';
+        passwordInput.focus();
+      }
+
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => switchLoginType(tab.dataset.loginType));
+      });
 
       /** 显示错误消息 */
       function showError(msg) {
@@ -213,8 +273,8 @@
         const token = API.getToken();
         if (token) {
           try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            // 仅管理员 token 自动跳过登录页，访客 token 仍显示登录页
+            const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+            // 仅管理员 token 自动跳过登录页
             if (payload.role === 'admin' && payload.exp * 1000 > Date.now()) {
               goToIndex();
               return;
@@ -223,7 +283,7 @@
         }
       })();
 
-      // ===== 密码解锁 =====
+      // ===== 密码登录（管理员 / 用户） =====
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         hideError();
@@ -236,10 +296,17 @@
 
         setLoading(true);
         try {
-          const result = await API.verifyPassword(password);
+          const result = loginType === 'admin'
+            ? await API.verifyPassword(password)
+            : await API.verifyUserPassword(password);
           if (result.success) {
             if (result.token) API.setToken(result.token);
-            goToIndex();
+            // 管理员可跳转到请求的页面（如 admin.html）；用户始终回首页
+            if (loginType === 'admin') {
+              goToIndex();
+            } else {
+              location.href = '/index.html';
+            }
           } else {
             showError(result.error || '密码错误');
             setLoading(false);
@@ -250,18 +317,11 @@
         }
       });
 
-      // ===== 访客模式 =====
-      guestBtn.addEventListener('click', async () => {
+      // ===== 访客模式（无 Token，直接浏览） =====
+      guestBtn.addEventListener('click', () => {
         hideError();
-        setLoading(true);
-        try {
-          const result = await API.getGuestToken();
-          if (result.token) API.setToken(result.token);
-          goToIndex();
-        } catch (err) {
-          showError(err.message || '获取访客令牌失败');
-          setLoading(false);
-        }
+        API.clearToken();
+        goToIndex();
       });
     })();
   </script>

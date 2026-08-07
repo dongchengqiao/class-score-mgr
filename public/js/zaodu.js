@@ -23,25 +23,17 @@ function parseToken(token) {
   }
 }
 
-/** 检测登录状态，自动获取访客 token */
+/** 检测登录状态：admin / user 可操作；无 token 访客只读 */
 async function checkAuth() {
   const token = API.getToken && API.getToken();
   if (token) {
     const payload = parseToken(token);
-    if (payload && payload.role === 'admin' && payload.exp * 1000 > Date.now()) {
+    if (payload && (payload.role === 'admin' || payload.role === 'user') && payload.exp * 1000 > Date.now()) {
       isReadOnly = false;
-      return; // 管理员已登录
+      return; // 已登录（管理员或用户）
     }
   }
-  // 没有有效管理员 token → 尝试获取访客 token
-  try {
-    const res = await API.getGuestToken();
-    if (res && res.token) {
-      API.setToken(res.token);
-    }
-  } catch (e) {
-    console.warn('获取访客 token 失败，可能无法加载数据:', e);
-  }
+  // 无有效 token → 访客模式（只读）
   isReadOnly = true;
 }
 
@@ -50,10 +42,10 @@ function updateAuthBanner() {
   const banner = document.getElementById('authBanner');
   if (!banner) return;
   if (isReadOnly) {
-    banner.innerHTML = '<i class="fas fa-eye"></i> 访客模式 · 仅可查看分数 <a href="/" class="banner-link">去登录 →</a>';
+    banner.innerHTML = '<i class="fas fa-eye"></i> 访客模式 · 仅可查看分数 <a href="/login.html" class="banner-link">去登录 →</a>';
     banner.className = 'auth-banner guest';
   } else {
-    banner.innerHTML = '<i class="fas fa-lock-open"></i> 管理员模式 · 可进行加减分操作';
+    banner.innerHTML = '<i class="fas fa-lock-open"></i> 已登录 · 可进行加减分操作';
     banner.className = 'auth-banner admin';
   }
 

@@ -13,7 +13,7 @@
 | 🛍️ 积分商城 | 商品兑换、库存管理、积分扣减与兑换记录 |
 | 👥 小组管理 | 分组、组内积分操作 |
 | 📊 管理后台 | 系统统计（人数/积分/规则/历史）、密码管理、数据导入导出、Excel 报表 |
-| 🔐 权限控制 | 管理员密码登录（JWT 7 天有效），访客只读模式 |
+| 🔐 权限控制 | 三级权限：管理员 / 用户（可加减分）/ 访客（只读），JWT 7 天有效 |
 
 ## 🚀 快速启动
 
@@ -45,9 +45,9 @@ npm start
 │   ├── server.js             # Express 入口（端口 4000）
 │   ├── json-db.js            # JSON 数据引擎（存储/迁移/CRUD）
 │   ├── middleware/
-│   │   └── auth.js           # JWT 认证中间件
+│   │   └── auth.js           # JWT 认证中间件（admin/user/guest 三角色）
 │   ├── routes/
-│   │   ├── auth.js           # 登录/密码验证/访客 token
+│   │   ├── auth.js           # 登录/密码验证/用户密码管理
 │   │   ├── students.js       # 学生 CRUD + 加减分 + 撤回
 │   │   ├── groups.js         # 小组管理
 │   │   ├── rules.js          # 积分规则
@@ -103,11 +103,45 @@ npm start
 
 `normalizePinyin` 处理特殊韵母规则（ün → iong/ong、vn → iong 等）。
 
-## 🔒 权限模型
+## 🔒 权限模型（三级）
 
-- **管理员**：密码登录（SHA-256 校验）→ 获得 admin JWT（7 天），可写操作
-- **访客**：无需密码，只读浏览
-- 所有写接口（POST/PUT/DELETE）由 `middleware/auth.js` 拦截，仅 admin token 可通过
+系统采用 **三级权限**，通过 JWT（7 天有效）区分身份：
+
+| 身份 | 凭据 | Token | 权限范围 |
+|------|------|-------|---------|
+| **管理员** | 管理员密码（`settings.app_password_hash`，SHA-256 校验） | admin token | 全部功能：加减分、语音/早读加分、**管理后台**（admin.html）、密码管理、数据导入导出 |
+| **用户** | 用户密码（`settings.user_password_hash`，由管理员在后台设置） | user token | 可加减分、语音/早读加分；**不可访问管理后台**。主页显示"用管理员密码登录"按钮；直接进入 admin.html 会提示"登录管理员账号"并跳回登录页 |
+| **访客** | 无 | 无 token | 仅浏览（GET 公开），任何写操作返回 401 |
+
+### 认证流程
+
+- 登录页（`login.html`）提供 **管理员 / 用户** 两个 Tab，分别调用 `/api/auth/verify` 与 `/api/auth/verify-user` 验证密码
+- 登录成功后 token 存入 `localStorage.auth_token`；访客模式直接清除 token 进入主页（仅浏览）
+- `middleware/auth.js` 拦截规则：
+  - **无 token**：GET 请求以 `guest` 身份放行（只读）；写请求返回 `401 AUTH_REQUIRED`
+  - **有 token**：校验 JWT 签名与有效期（过期返回 `401 TOKEN_EXPIRED`，无效返回 `401 TOKEN_INVALID`）
+  - 写操作（POST/PUT/DELETE）仅允许 `admin` / `user` 角色，其余返回 `403 GUEST_FORBIDDEN`
+  - `/api/admin/*` 额外挂载 `requireAdmin` 中间件，仅 `admin` 角色可访问，其余返回 `403 ADMIN_REQUIRED`
+
+### 密码管理
+
+- **管理员密码**：管理员登录后进入管理后台 → 密码管理区（设置 / 修改 / 取消）
+- **用户密码**：由管理员在管理后台密码管理区设置，用户凭此密码登录（与管理员密码相互独立）
+- **修改 / 取消密码无需输入旧密码**：登录状态下凭 token 身份即可直接修改或取消（密码管理接口均在 `requireAdmin` 保护下，仅管理员可操作）
+
+### 认证相关接口
+
+| 接口 | 说明 |
+|------|------|
+| `GET /api/auth/status` | 查询密码设置状态（`hasPassword` / `hasAdminPassword` / `hasUserPassword`） |
+| `POST /api/auth/verify` | 管理员密码登录 → 返回 admin token |
+| `POST /api/auth/verify-user` | 用户密码登录 → 返回 user token |
+| `POST /api/auth/set-user-password` | 管理员设置用户密码（返回 user token） |
+| `POST /api/auth/change-user-password` | 修改用户密码，仅需 `newPassword`，凭 admin token 即可 |
+| `POST /api/auth/cancel-user-password` | 取消用户密码，凭 admin token 即可 |
+| `POST /api/auth/set-password` | 首次设置管理员密码（返回 admin token） |
+| `POST /api/auth/change-password` | 修改管理员密码，仅需 `newPassword`，凭 admin token 即可 |
+| `POST /api/auth/cancel-password` | 取消管理员密码，凭 admin token 即可 |
 
 ## 🛠️ 开发命令
 

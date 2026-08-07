@@ -10,7 +10,7 @@ const authRouter = require('./routes/auth');
 const dataRouter = require('./routes/data');
 const morningReadingRouter = require('./routes/morning-reading');
 const adminRouter = require('./routes/admin');
-const { authenticate } = require('./middleware/auth');
+const { authenticate, requireAdmin } = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -59,7 +59,8 @@ app.use('/api/rules', authenticate, rulesRouter);
 app.use('/api/shop', authenticate, shopRouter);
 app.use('/api/data', authenticate, dataRouter);
 app.use('/api/morning-reading', authenticate, morningReadingRouter);
-app.use('/api/admin', authenticate, adminRouter);
+// 管理后台路由：需要 admin 角色（user / guest / 无 token 均不可访问）
+app.use('/api/admin', authenticate, requireAdmin, adminRouter);
 
 // ============================================================
 // 错误处理

@@ -4,44 +4,68 @@
 
 const Admin = {
   unlocked: false,
-  unlockMode: 'unlock', // 'unlock' | 'setup'
+  unlockMode: 'unlock', // 'unlock' | 'setup' | 'blocked'
   rules: [],
   shopItems: [],
   students: [],
 
   async init() {
-    // 检查密码状态，决定解锁模式
+    // 检查当前 token 角色：admin 可直接进入，否则显示"登录管理员账号"
+    const role = API.getRole();
+    if (role === 'admin') {
+      Admin.unlocked = true;
+      document.getElementById('unlockOverlay').style.display = 'none';
+      document.getElementById('adminContent').style.display = 'block';
+      document.getElementById('adminBadge').innerHTML = '<i class="fas fa-unlock"></i> 已验证';
+      document.getElementById('adminBadge').style.background = 'var(--accent2)';
+      Admin.bindEvents();
+      Admin.loadData();
+      return;
+    }
+
+    // 非管理员 → 显示"登录管理员账号"提示
+    Admin.unlockMode = 'blocked';
+    document.getElementById('unlockIcon').className = 'fas fa-user-shield';
+    document.getElementById('unlockTitle').textContent = '需要管理员权限';
+    document.getElementById('unlockDesc').textContent = '仅管理员可访问管理后台';
+    document.getElementById('unlockPasswordGroup').style.display = 'none';
+    document.getElementById('unlockSetPwGroup').style.display = 'none';
+    document.getElementById('unlockLoginGroup').style.display = 'block';
+    document.getElementById('adminUnlockBtn').style.display = 'none';
+    document.getElementById('adminGoLoginBtn').addEventListener('click', () => {
+      location.href = '/login.html?redirect=/admin.html';
+    });
+
+    // 若尚未设置管理员密码，提供首次设置入口
     try {
       const status = await API.getAuthStatus();
-      if (status.hasPassword) {
-        Admin.unlockMode = 'unlock';
-        document.getElementById('unlockIcon').className = 'fas fa-lock';
-        document.getElementById('unlockTitle').textContent = '管理员验证';
-        document.getElementById('unlockDesc').textContent = '请输入密码以访问管理后台';
-        document.getElementById('unlockPasswordGroup').style.display = 'block';
-        document.getElementById('unlockSetPwGroup').style.display = 'none';
-      } else {
+      if (!status.hasPassword) {
         Admin.unlockMode = 'setup';
         document.getElementById('unlockIcon').className = 'fas fa-key';
         document.getElementById('unlockTitle').textContent = '首次使用';
-        document.getElementById('unlockDesc').textContent = '尚未设置密码，请先设置一个管理密码';
+        document.getElementById('unlockDesc').textContent = '尚未设置管理员密码，请先设置一个管理密码';
         document.getElementById('unlockPasswordGroup').style.display = 'none';
         document.getElementById('unlockSetPwGroup').style.display = 'block';
+        document.getElementById('unlockLoginGroup').style.display = 'none';
+        document.getElementById('adminUnlockBtn').style.display = 'block';
       }
     } catch (e) {
       console.error('检查密码状态失败:', e);
-      Admin.unlockMode = 'unlock';
     }
 
+    Admin.bindEvents();
+  },
+
+  bindEvents() {
     // 解锁按钮
-    document.getElementById('adminUnlockBtn').addEventListener('click', () => Admin.handleUnlock());
-    document.getElementById('adminPasswordInput').addEventListener('keydown', e => {
+    document.getElementById('adminUnlockBtn')?.addEventListener('click', () => Admin.handleUnlock());
+    document.getElementById('adminPasswordInput')?.addEventListener('keydown', e => {
       if (e.key === 'Enter') Admin.handleUnlock();
     });
-    document.getElementById('adminNewPwInput').addEventListener('keydown', e => {
+    document.getElementById('adminNewPwInput')?.addEventListener('keydown', e => {
       if (e.key === 'Enter') Admin.handleUnlock();
     });
-    document.getElementById('adminConfirmPwInput').addEventListener('keydown', e => {
+    document.getElementById('adminConfirmPwInput')?.addEventListener('keydown', e => {
       if (e.key === 'Enter') Admin.handleUnlock();
     });
 
@@ -49,6 +73,11 @@ const Admin = {
     document.getElementById('setPasswordBtn').addEventListener('click', () => Admin.handleSetPassword());
     document.getElementById('changePasswordBtn').addEventListener('click', () => Admin.handleChangePassword());
     document.getElementById('cancelPasswordBtn').addEventListener('click', () => Admin.handleCancelPassword());
+
+    // 用户密码管理
+    document.getElementById('setUserPasswordBtn').addEventListener('click', () => Admin.handleSetUserPassword());
+    document.getElementById('changeUserPasswordBtn').addEventListener('click', () => Admin.handleChangeUserPassword());
+    document.getElementById('cancelUserPasswordBtn').addEventListener('click', () => Admin.handleCancelUserPassword());
 
     // 数据管理
     document.getElementById('adminExportBtn').addEventListener('click', () => Admin.handleExport());
@@ -238,12 +267,65 @@ const Admin = {
       const res = await API.getAuthStatus();
       const el = document.getElementById('passwordStatus');
       if (res.hasPassword) {
-        el.innerHTML = '<i class="fas fa-check-circle" style="color:var(--accent2);"></i> 已设置密码保护';
+        el.innerHTML = '<i class="fas fa-check-circle" style="color:var(--accent2);"></i> 已设置管理员密码保护';
       } else {
-        el.innerHTML = '<i class="fas fa-exclamation-circle" style="color:var(--accent1);"></i> 未设置密码';
+        el.innerHTML = '<i class="fas fa-exclamation-circle" style="color:var(--accent1);"></i> 未设置管理员密码';
+      }
+      // 用户密码状态
+      const userEl = document.getElementById('userPasswordStatus');
+      if (userEl) {
+        if (res.hasUserPassword) {
+          userEl.innerHTML = '<i class="fas fa-check-circle" style="color:var(--accent2);"></i> 已设置用户密码（用户可加减分，不可访问后台）';
+        } else {
+          userEl.innerHTML = '<i class="fas fa-exclamation-circle" style="color:var(--accent1);"></i> 未设置用户密码（用户无法登录）';
+        }
       }
     } catch (err) {
       console.error('加载密码状态失败:', err);
+    }
+  },
+
+  async handleSetUserPassword() {
+    const newPw = document.getElementById('newUserPassword').value;
+    if (!newPw) { alert('请输入新用户密码'); return; }
+    try {
+      const res = await API.setUserPassword(newPw);
+      if (res.success) {
+        alert('用户密码设置成功！');
+        document.getElementById('newUserPassword').value = '';
+        Admin.loadPasswordStatus();
+      }
+    } catch (err) {
+      alert('设置失败: ' + (err.message || err));
+    }
+  },
+
+  async handleChangeUserPassword() {
+    const newPw = document.getElementById('newUserPassword').value;
+    if (!newPw) { alert('请输入新用户密码'); return; }
+    try {
+      const res = await API.changeUserPassword(newPw);
+      if (res.success) {
+        alert('用户密码修改成功！');
+        document.getElementById('newUserPassword').value = '';
+        Admin.loadPasswordStatus();
+      }
+    } catch (err) {
+      alert('修改失败: ' + (err.message || err));
+    }
+  },
+
+  async handleCancelUserPassword() {
+    if (!confirm('确定要取消用户密码吗？用户将无法通过用户密码登录。')) return;
+    try {
+      const res = await API.cancelUserPassword();
+      if (res.success) {
+        alert('已取消用户密码！');
+        document.getElementById('newUserPassword').value = '';
+        Admin.loadPasswordStatus();
+      }
+    } catch (err) {
+      alert('取消失败: ' + (err.message || err));
     }
   },
 
@@ -264,15 +346,14 @@ const Admin = {
   },
 
   async handleChangePassword() {
-    const oldPw = document.getElementById('oldPassword').value;
     const newPw = document.getElementById('newPassword').value;
-    if (!oldPw || !newPw) { alert('请填写当前密码和新密码'); return; }
+    if (!newPw) { alert('请输入新密码'); return; }
     try {
-      const res = await API.changePassword(oldPw, newPw);
+      const res = await API.changePassword(newPw);
       if (res.success) {
         alert('密码修改成功！');
-        document.getElementById('oldPassword').value = '';
         document.getElementById('newPassword').value = '';
+        Admin.loadPasswordStatus();
       }
     } catch (err) {
       alert('修改失败: ' + (err.message || err));
@@ -280,14 +361,12 @@ const Admin = {
   },
 
   async handleCancelPassword() {
-    const pw = document.getElementById('oldPassword').value;
-    if (!pw) { alert('请输入当前密码以取消密码保护'); return; }
     if (!confirm('确定要取消密码保护吗？任何人都可以访问此系统。')) return;
     try {
-      const res = await API.cancelPassword(pw);
+      const res = await API.cancelPassword();
       if (res.success) {
         alert('已取消密码保护！');
-        document.getElementById('oldPassword').value = '';
+        document.getElementById('newPassword').value = '';
         Admin.loadPasswordStatus();
       }
     } catch (err) {
@@ -395,7 +474,7 @@ const Admin = {
       // 过滤掉密码哈希（不显示）
       let html = '<table class="settings-table"><thead><tr><th>键名</th><th>值</th><th>操作</th></tr></thead><tbody>';
       for (const key of keys) {
-        if (key === 'app_password_hash' || key === 'school_name') continue;
+        if (key === 'app_password_hash' || key === 'user_password_hash' || key === 'school_name') continue;
         let val = settings[key];
         if (typeof val === 'object') val = JSON.stringify(val);
         html += `<tr>

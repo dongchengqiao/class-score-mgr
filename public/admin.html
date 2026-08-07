@@ -41,6 +41,10 @@
           <input type="password" id="adminNewPwInput" class="form-control" placeholder="设置新密码" style="margin-bottom:8px;">
           <input type="password" id="adminConfirmPwInput" class="form-control" placeholder="确认新密码" style="margin-bottom:12px;">
         </div>
+        <div id="unlockLoginGroup" style="display:none;">
+          <p style="color:var(--text-light);margin-bottom:12px;font-size:14px;">您当前不是管理员账号，无法访问管理后台。</p>
+          <button id="adminGoLoginBtn" class="btn btn-primary" style="width:100%;"><i class="fas fa-sign-in-alt"></i> 登录管理员账号</button>
+        </div>
         <button id="adminUnlockBtn" class="btn btn-primary" style="width:100%;"><i class="fas fa-unlock"></i> 解锁</button>
         <p id="unlockError" style="color:var(--primary);margin-top:10px;display:none;"></p>
       </div>
@@ -162,17 +166,26 @@
             <div id="passwordStatus" class="admin-status"><i class="fas fa-info-circle"></i> 加载中...</div>
             <div class="admin-form-row">
               <div class="admin-form-group">
-                <label>当前密码</label>
-                <input type="password" id="oldPassword" class="form-control" placeholder="当前密码">
-              </div>
-              <div class="admin-form-group">
                 <label>新密码</label>
-                <input type="password" id="newPassword" class="form-control" placeholder="新密码">
+                <input type="password" id="newPassword" class="form-control" placeholder="输入新密码">
               </div>
               <div class="admin-form-actions">
                 <button id="setPasswordBtn" class="btn btn-primary"><i class="fas fa-save"></i> 设置密码</button>
                 <button id="changePasswordBtn" class="btn btn-accent2"><i class="fas fa-edit"></i> 修改密码</button>
                 <button id="cancelPasswordBtn" class="btn btn-danger"><i class="fas fa-times"></i> 取消密码</button>
+              </div>
+            </div>
+            <hr style="border:none;border-top:1px solid var(--border);margin:18px 0;">
+            <div id="userPasswordStatus" class="admin-status" style="margin-bottom:12px;"><i class="fas fa-info-circle"></i> 加载中...</div>
+            <div class="admin-form-row">
+              <div class="admin-form-group">
+                <label>新用户密码</label>
+                <input type="password" id="newUserPassword" class="form-control" placeholder="输入新用户密码">
+              </div>
+              <div class="admin-form-actions">
+                <button id="setUserPasswordBtn" class="btn btn-primary"><i class="fas fa-save"></i> 设置用户密码</button>
+                <button id="changeUserPasswordBtn" class="btn btn-accent2"><i class="fas fa-edit"></i> 修改用户密码</button>
+                <button id="cancelUserPasswordBtn" class="btn btn-danger"><i class="fas fa-times"></i> 取消用户密码</button>
               </div>
             </div>
           </div>

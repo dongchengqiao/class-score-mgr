@@ -32,12 +32,12 @@
   <div class="author-watermark" id="watermark">📚 xxx班 · 积分管理</div>
   <script>
     (function() {
-      fetch('/api/admin/settings')
+      fetch('/api/data/settings')
         .then(r => r.json())
         .then(s => {
-          if (s.class_name) {
-            document.getElementById('watermark').textContent = '📚 ' + s.class_name + ' · 积分管理';
-            document.title = s.class_name + ' - 班级积分管理系统';
+          if (s.settings && s.settings.class_name) {
+            document.getElementById('watermark').textContent = '📚 ' + s.settings.class_name + ' · 积分管理';
+            document.title = s.settings.class_name + ' - 班级积分管理系统';
           }
         })
         .catch(() => {});
@@ -50,8 +50,8 @@
       <div class="logo"><i class="fas fa-star"></i> 班级积分管理</div>
       <div class="header-controls">
         <button id="loginBtn" class="btn btn-primary" style="display:none;"><i class="fas fa-sign-in-alt"></i> 登录</button>
+        <button id="adminLoginBtn" class="btn btn-primary" style="display:none;"><i class="fas fa-shield-alt"></i> 用管理员密码登录</button>
         <button id="logoutBtn" class="btn btn-danger" style="display:none;"><i class="fas fa-sign-out-alt"></i> 退出登录</button>
-        <button id="passwordBtn" class="btn btn-danger"><i class="fas fa-key"></i> 设置密码</button>
         <button id="timerBtn" class="btn btn-accent2"><i class="fas fa-stopwatch"></i> 计时</button>
         <button id="goToMorningReading" class="btn btn-accent3" onclick="location.href='/zaodu.html'"><i class="fas fa-book-open"></i> 早读加分</button>
         <button id="goToVoice" class="btn btn-accent3"><i class="fas fa-microphone"></i> 语音加分</button>
@@ -255,56 +255,6 @@
       </div>
       <div class="modal-footer" style="justify-content:center;">
         <button id="minimizeTimerBtn" class="btn btn-secondary"><i class="fas fa-compress-arrows-alt"></i> 最小化</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ======= 设置密码弹窗 ======= -->
-  <div id="setPasswordModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header"><h3 class="modal-title">设置页面密码</h3><span class="close">&times;</span></div>
-      <div class="modal-body">
-        <p>设置后，每次进入页面都需要输入密码才能操作。</p>
-        <form id="setPasswordForm">
-          <div class="form-group">
-            <label for="newPassword1" class="form-label">新密码:</label>
-            <input type="password" id="newPassword1" class="form-control" required>
-          </div>
-          <div class="form-group">
-            <label for="newPassword2" class="form-label">确认新密码:</label>
-            <input type="password" id="newPassword2" class="form-control" required>
-          </div>
-          <div class="modal-footer" style="padding-right:0;">
-            <button type="submit" class="btn btn-primary">确认设置</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <!-- ======= 修改密码弹窗 ======= -->
-  <div id="changePasswordModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header"><h3 class="modal-title">修改页面密码</h3><span class="close">&times;</span></div>
-      <div class="modal-body">
-        <form id="changePasswordForm">
-          <div class="form-group">
-            <label for="oldPassword" class="form-label">旧密码</label>
-            <input type="password" id="oldPassword" class="form-control" required>
-          </div>
-          <div class="form-group">
-            <label for="changeNewPassword1" class="form-label">新密码:</label>
-            <input type="password" id="changeNewPassword1" class="form-control" required>
-          </div>
-          <div class="form-group">
-            <label for="changeNewPassword2" class="form-label">确认新密码:</label>
-            <input type="password" id="changeNewPassword2" class="form-control" required>
-          </div>
-          <div class="modal-footer" style="padding-right:0; justify-content:space-between;">
-            <button type="button" id="cancelPasswordBtn" class="btn btn-danger">取消密码保护</button>
-            <button type="submit" class="btn btn-primary">确认修改</button>
-          </div>
-        </form>
       </div>
     </div>
   </div>

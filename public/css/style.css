@@ -1232,7 +1232,6 @@ body.multi-select-mode .student-card .multi-select-checkbox { display: block; }
 
 .guest-mode #goToVoice,
 .guest-mode #goToAdmin,
-.guest-mode #passwordBtn,
 .guest-mode #exportData,
 .guest-mode #importData,
 .guest-mode #multiSelectToggleBtn,

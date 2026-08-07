@@ -22,7 +22,7 @@ const Voice = {
       return;
     }
 
-    // 检查登录状态 - 仅允许管理员使用
+    // 检查登录状态 - admin / user 可用；无 token 访客禁用
     const token = API.getToken();
     const authOverlay = document.getElementById('authOverlay');
     const isStandalonePage = !!authOverlay;
@@ -32,11 +32,11 @@ const Voice = {
       document.getElementById('micBtn').disabled = true;
       return;
     }
-    // 检查是否为访客 token
+    // 检查 token 角色（guest 已废弃，兼容旧 token）
     if (token && isStandalonePage) {
       try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        if (payload.role === 'guest') {
+        const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+        if (payload.role !== 'admin' && payload.role !== 'user') {
           authOverlay.style.display = 'flex';
           document.getElementById('micBtn').disabled = true;
           return;
