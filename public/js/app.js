@@ -923,9 +923,6 @@ const App = {
     // 计时器
     document.getElementById('timerBtn')?.addEventListener('click', () => Timer.showModal());
 
-    // 主题切换
-    document.getElementById('themeToggle')?.addEventListener('click', () => { UI.cycleTheme(); App.renderAll(); });
-
     // 语音加分
     document.getElementById('goToVoice')?.addEventListener('click', () => {
       if (!Auth.requireAuth()) return;
