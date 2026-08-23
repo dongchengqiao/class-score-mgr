@@ -926,9 +926,6 @@ const App = {
     // 主题切换
     document.getElementById('themeToggle')?.addEventListener('click', () => { UI.cycleTheme(); App.renderAll(); });
 
-    // 音乐控制
-    document.getElementById('musicToggle')?.addEventListener('click', () => UI.toggleMusic());
-
     // 语音加分
     document.getElementById('goToVoice')?.addEventListener('click', () => {
       if (!Auth.requireAuth()) return;

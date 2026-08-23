@@ -99,22 +99,6 @@ const UI = {
     }
   },
 
-  // ==================== 音乐 ====================
-
-  /** 切换背景音乐 */
-  toggleMusic() {
-    const bgMusic = document.getElementById('bgMusic');
-    const btn = document.getElementById('musicToggle');
-    if (!bgMusic) return;
-    if (bgMusic.paused) {
-      bgMusic.play().catch(() => {});
-      btn.innerHTML = '<i class="fas fa-volume-up"></i>';
-    } else {
-      bgMusic.pause();
-      btn.innerHTML = '<i class="fas fa-volume-mute"></i>';
-    }
-  },
-
   // ==================== 拖拽 ====================
 
   /** 设置拖拽放置区 */

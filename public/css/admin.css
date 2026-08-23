@@ -293,8 +293,8 @@
   flex-shrink: 0;
 }
 
-.admin-student-avatar.male { background: var(--secondary); }
-.admin-student-avatar.female { background: var(--primary); }
+.admin-student-avatar.male { background: color-mix(in srgb, var(--secondary) 70%, white); }
+.admin-student-avatar.female { background: color-mix(in srgb, var(--primary) 70%, white); }
 
 .admin-student-name {
   flex: 1;

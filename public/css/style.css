@@ -360,9 +360,9 @@ textarea.form-control { min-height: 100px; resize: vertical; }
   display: flex;
   flex-direction: column;
 }
-
-.student-card.male .student-card-inner { border: 3px solid var(--boy); }
-.student-card.female .student-card-inner { border: 3px solid var(--girl); }
+/* 原学生边框
+.student-card.male .student-card-inner { border: 3px solid color-mix(in srgb, var(--boy) 70%, white); }
+.student-card.female .student-card-inner { border: 3px solid color-mix(in srgb, var(--girl) 70%, white); } */
 
 .student-card .multi-select-checkbox {
   position: absolute;
@@ -409,8 +409,8 @@ body.multi-select-mode .student-card .multi-select-checkbox { display: block; }
 }
 
 .student-avatar:hover::after { opacity: 1; }
-.student-avatar.male { background: linear-gradient(135deg, var(--boy), var(--boy-light)); }
-.student-avatar.female { background: linear-gradient(135deg, var(--girl), var(--girl-light)); }
+.student-avatar.male { background: color-mix(in srgb, var(--boy) 70%, white); }
+.student-avatar.female { background: color-mix(in srgb, var(--girl) 70%, white); }
 .student-avatar img { width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0; }
 
 .student-info {
@@ -635,8 +635,8 @@ body.multi-select-mode .student-card .multi-select-checkbox { display: block; }
   color: white;
   overflow: hidden;
 }
-.leaderboard-avatar.male { background: linear-gradient(135deg, var(--boy), var(--boy-light)); }
-.leaderboard-avatar.female { background: linear-gradient(135deg, var(--girl), var(--girl-light)); }
+.leaderboard-avatar.male { background: color-mix(in srgb, var(--boy) 70%, white); }
+.leaderboard-avatar.female { background: color-mix(in srgb, var(--girl) 70%, white); }
 .leaderboard-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
 .leaderboard-info { flex: 1; }
@@ -903,29 +903,6 @@ body.multi-select-mode .student-card .multi-select-checkbox { display: block; }
   100% { opacity: 0; transform: translateY(-100px) scale(1); }
 }
 
-/* ======= 音乐控制 ======= */
-.music-control {
-  position: fixed;
-  bottom: 30px; right: 30px;
-  z-index: 900;
-}
-
-#musicToggle {
-  width: 60px; height: 60px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--primary), var(--accent3));
-  color: white;
-  font-size: 24px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  cursor: pointer;
-  box-shadow: 0 8px 25px rgba(0,0,0,0.2);
-  border: none;
-  transition: all 0.3s ease;
-}
-#musicToggle:hover { transform: scale(1.1) rotate(20deg); }
-
 /* ======= 随机点名 ======= */
 .roll-call-modal .modal-content { max-width: 95%; width: 1400px; }
 
@@ -964,8 +941,8 @@ body.multi-select-mode .student-card .multi-select-checkbox { display: block; }
   border: 3px solid transparent;
   transition: all 0.1s ease-out;
 }
-.roll-call-avatar.male { background: linear-gradient(135deg, var(--boy), var(--boy-light)); }
-.roll-call-avatar.female { background: linear-gradient(135deg, var(--girl), var(--girl-light)); }
+.roll-call-avatar.male { background: color-mix(in srgb, var(--boy) 70%, white); }
+.roll-call-avatar.female { background: color-mix(in srgb, var(--girl) 70%, white); }
 .roll-call-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .roll-call-name { font-weight: 700; font-size: 16px; color: var(--text); text-align: center; }
 
@@ -1070,8 +1047,8 @@ body.multi-select-mode .student-card .multi-select-checkbox { display: block; }
   transition: all 0.3s ease;
 }
 .student-select-item:hover { transform: translateY(-3px); box-shadow: 0 5px 10px rgba(0,0,0,0.08); }
-.student-select-item.male { border-left: 4px solid var(--boy); }
-.student-select-item.female { border-left: 4px solid var(--girl); }
+.student-select-item.male { border-left: 4px solid color-mix(in srgb, var(--boy) 70%, white); }
+.student-select-item.female { border-left: 4px solid color-mix(in srgb, var(--girl) 70%, white); }
 
 .student-select-label {
   display: flex;
@@ -1098,8 +1075,8 @@ body.multi-select-mode .student-card .multi-select-checkbox { display: block; }
   color: white;
   font-weight: 700;
 }
-.student-select-avatar.male { background: linear-gradient(135deg, var(--boy), var(--boy-light)); }
-.student-select-avatar.female { background: linear-gradient(135deg, var(--girl), var(--girl-light)); }
+.student-select-avatar.male { background: color-mix(in srgb, var(--boy) 70%, white); }
+.student-select-avatar.female { background: color-mix(in srgb, var(--girl) 70%, white); }
 
 /* ======= 辅助类 ======= */
 .text-center { text-align: center; }
