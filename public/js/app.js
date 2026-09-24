@@ -934,6 +934,7 @@ const App = {
     document.getElementById('importData')?.addEventListener('click', () => document.getElementById('importFile').click());
     document.getElementById('importFile')?.addEventListener('change', (e) => DataManager.importAll(e));
     document.getElementById('exportDetailsBtn')?.addEventListener('click', () => DataManager.showExportDetailsModal());
+    document.getElementById('exportGroupBtn')?.addEventListener('click', () => DataManager.showExportGroupModal());
 
     // 标签页切换
     document.querySelectorAll('.left-panel .tab-btn').forEach(btn => {

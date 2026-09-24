@@ -137,4 +137,63 @@ router.post('/export-report', (req, res) => {
   }
 });
 
+/** 生成小组一周积分详情报表数据 */
+router.post('/export-group-report', (req, res) => {
+  try {
+    const { startDate, endDate, groupIds } = req.body;
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: '请提供日期范围' });
+    }
+
+    const start = new Date(startDate + 'T00:00:00');
+    const end = new Date(endDate + 'T23:59:59');
+    const startISO = start.toISOString();
+    const endISO = end.toISOString();
+
+    const groups = DB.getGroups();
+    // 默认全选；若传入了 groupIds 则只导出选中的小组
+    const selectedGroups = Array.isArray(groupIds) && groupIds.length > 0
+      ? groups.filter(g => groupIds.includes(g.id))
+      : groups;
+
+    const result = selectedGroups.map(group => {
+      const members = DB.getStudentsByGroup(group.id);
+      // 每个成员在时间范围内的积分记录（排除兑换记录）
+      const memberStats = members.map(m => {
+        const history = DB.getHistoryInRange(m.id, startISO, endISO);
+        const delta = history.reduce((sum, h) => sum + h.points, 0);
+        return { studentId: m.id, name: m.name, delta, history };
+      });
+
+      // 小组开始时间分数 = 时间区间开始前所有成员的累计积分
+      const startScore = members.reduce((sum, m) => {
+        const before = DB.getHistoryInRange(m.id, '0000-01-01T00:00:00', startISO);
+        return sum + before.reduce((s, h) => s + h.points, 0);
+      }, 0);
+
+      // 小组结束时间分数 = 开始分数 + 区间内净得分
+      const endScore = startScore + memberStats.reduce((sum, m) => sum + m.delta, 0);
+      const delta = endScore - startScore;
+
+      return {
+        id: group.id,
+        name: group.name,
+        startScore,
+        endScore,
+        delta,
+        members: memberStats
+      };
+    });
+
+    // 按区间净得分排序，计算排名
+    result.sort((a, b) => b.delta - a.delta);
+    result.forEach((g, i) => { g.rank = i + 1; });
+
+    res.json({ startDate, endDate, groups: result });
+  } catch (err) {
+    console.error('POST /api/data/export-group-report error:', err);
+    res.status(500).json({ error: '生成小组报表失败' });
+  }
+});
+
 module.exports = router;

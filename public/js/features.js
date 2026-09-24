@@ -462,5 +462,90 @@ const DataManager = {
 
       XLSX.writeFile(wb, `积分明细报表_${startDateStr}_至_${endDateStr}.xlsx`);
     } catch (err) { alert('生成报表失败: ' + err.message); }
+  },
+
+  // ==================== 小组一周积分详情导出 ====================
+
+  showExportGroupModal() {
+    const modal = document.getElementById('exportGroupModal');
+    const startInput = document.getElementById('groupStartDate');
+    const endInput = document.getElementById('groupEndDate');
+    const btn = document.getElementById('generateGroupReportBtn');
+    const listEl = document.getElementById('groupExportCheckboxes');
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+
+    // 渲染小组勾选列表（默认全选）
+    listEl.innerHTML = '';
+    const groups = App.groups || [];
+    if (!groups.length) {
+      listEl.innerHTML = '<p class="text-muted">暂无小组，请先在「小组管理」中创建小组。</p>';
+    } else {
+      groups.forEach(g => {
+        const label = document.createElement('label');
+        label.className = 'checkbox-label group-export-item';
+        label.innerHTML = `<input type="checkbox" class="group-export-checkbox" data-id="${g.id}" checked> <span>${g.name}</span>`;
+        listEl.appendChild(label);
+      });
+    }
+
+    startInput.max = todayStr; endInput.max = todayStr;
+    startInput.value = ''; endInput.value = '';
+    btn.disabled = true;
+
+    const validate = () => {
+      const hasGroup = listEl.querySelector('.group-export-checkbox:checked');
+      btn.disabled = !(startInput.value && endInput.value && startInput.value <= endInput.value && hasGroup);
+    };
+    startInput.oninput = validate; endInput.oninput = validate;
+    listEl.addEventListener('change', validate);
+
+    btn.onclick = () => {
+      const selected = [...listEl.querySelectorAll('.group-export-checkbox:checked')].map(cb => parseInt(cb.dataset.id, 10));
+      const includeDetails = document.getElementById('groupExportIncludeDetails').checked;
+      DataManager.generateGroupReport(startInput.value, endInput.value, selected, includeDetails);
+    };
+
+    modal.style.display = 'block';
+  },
+
+  async generateGroupReport(startDateStr, endDateStr, groupIds, includeDetails) {
+    try {
+      const result = await API.exportGroupReport(startDateStr, endDateStr, groupIds);
+      if (!result.groups.length) { alert('所选日期范围内没有任何小组积分记录。'); return; }
+
+      const wb = XLSX.utils.book_new();
+
+      // Sheet1: 小组积分汇总（按 markdown 文档格式）
+      const sheet1 = [['小组名称', '小组1'], ['开始时间分数', 'x'], ['结束时间分数', 'x+y'], ['分数差', 'y'], ['排名', '1']];
+      // 清空示例行，改为真实数据
+      sheet1.length = 0;
+      sheet1.push(['小组名称', '开始时间分数', '结束时间分数', '分数差', '排名']);
+      result.groups.forEach(g => {
+        sheet1.push([g.name, g.startScore, g.endScore, g.delta, g.rank]);
+      });
+      const ws1 = XLSX.utils.aoa_to_sheet(sheet1);
+      ws1['!cols'] = [{wch:16},{wch:16},{wch:16},{wch:12},{wch:8}];
+      XLSX.utils.book_append_sheet(wb, ws1, '小组积分汇总');
+
+      // Sheet2: 成员积分明细（可选）
+      if (includeDetails) {
+        const sheet2 = [['小组名称', '成员姓名', '变动时间', '变动原因', '分值']];
+        result.groups.forEach(g => {
+          g.members.forEach(m => {
+            if (m.history && m.history.length) {
+              m.history.forEach(h => {
+                sheet2.push([g.name, m.name, UI.formatDate(h.created_at), h.reason, h.points]);
+              });
+            }
+          });
+        });
+        const ws2 = XLSX.utils.aoa_to_sheet(sheet2);
+        ws2['!cols'] = [{wch:16},{wch:12},{wch:20},{wch:30},{wch:10}];
+        XLSX.utils.book_append_sheet(wb, ws2, '成员积分明细');
+      }
+
+      XLSX.writeFile(wb, `小组积分详情_${startDateStr}_至_${endDateStr}.xlsx`);
+    } catch (err) { alert('生成小组报表失败: ' + err.message); }
   }
 };

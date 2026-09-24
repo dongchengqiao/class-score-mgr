@@ -258,6 +258,10 @@ const API = {
     return this.request('POST', '/api/data/export-report', { startDate, endDate });
   },
 
+  exportGroupReport(startDate, endDate, groupIds) {
+    return this.request('POST', '/api/data/export-group-report', { startDate, endDate, groupIds });
+  },
+
   /** 健康检查 */
   healthCheck() {
     return this.request('GET', '/api/health');
