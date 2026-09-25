@@ -81,8 +81,7 @@ const App = {
             <div class="points-row"><span class="points-label">可用:</span><span class="points-value">${available}</span></div>
           </div>
           <div class="student-controls">
-            <button class="btn btn-icon btn-primary add-btn" title="加分"><i class="fas fa-plus"></i></button>
-            <button class="btn btn-icon btn-danger subtract-btn" title="减分"><i class="fas fa-minus"></i></button>
+            <button class="btn btn-icon btn-primary points-btn" title="加减分"><i class="fas fa-plus-minus"></i></button>
             <button class="btn btn-icon btn-secondary history-btn" title="历史记录"><i class="fas fa-history"></i></button>
             <button class="btn btn-icon btn-accent1 shop-btn" title="兑换商品"><i class="fas fa-shopping-cart"></i></button>
           </div>
@@ -103,8 +102,7 @@ const App = {
         }
       });
     }
-    card.querySelector('.add-btn')?.addEventListener('click', () => App.showPointsModal(student, 'add'));
-    card.querySelector('.subtract-btn')?.addEventListener('click', () => App.showPointsModal(student, 'subtract'));
+    card.querySelector('.points-btn')?.addEventListener('click', () => App.showPointsModal(student));
     card.querySelector('.history-btn')?.addEventListener('click', () => App.showHistoryModal(student));
     card.querySelector('.shop-btn')?.addEventListener('click', () => App.showShopModal(student));
     card.querySelector('.edit-student-btn')?.addEventListener('click', e => e.stopPropagation());
@@ -205,7 +203,6 @@ const App = {
         <div class="group-actions">
           <button class="btn btn-sm btn-primary add-students-btn" data-id="${group.id}"><i class="fas fa-user-plus"></i> 添加学生</button>
           <button class="btn btn-sm btn-secondary edit-group-btn" data-id="${group.id}"><i class="fas fa-edit"></i> 编辑组名</button>
-          <button class="btn btn-sm btn-danger delete-group-btn" data-id="${group.id}"><i class="fas fa-trash"></i> 删除小组</button>
           <button class="btn btn-sm btn-accent1 group-points-btn" data-id="${group.id}"><i class="fas fa-coins"></i> 小组积分</button>
         </div>
         <div class="group-students dropzone" data-group-id="${group.id}"></div>`;
@@ -213,13 +210,6 @@ const App = {
 
       card.querySelector('.add-students-btn').onclick = () => App.showAddStudentToGroupModal(group.id);
       card.querySelector('.edit-group-btn').onclick = () => App.showEditGroupModal(group.id);
-      card.querySelector('.delete-group-btn').onclick = async () => {
-        UI.confirm('删除小组', `确定要删除「${group.name}」吗？组内学生将返回未分组状态。`, async () => {
-          await API.deleteGroup(group.id);
-          await App.loadAllData();
-          App.renderAll();
-        });
-      };
       card.querySelector('.group-points-btn').onclick = () => App.showGroupPointsModal(group.id);
 
       const studentsEl = card.querySelector('.group-students');
@@ -336,8 +326,7 @@ const App = {
     document.getElementById('multiSelectToggleBtn').style.display = 'inline-flex';
     document.getElementById('randomRollCallBtn').style.display = 'inline-flex';
     document.getElementById('selectAllBtn').style.display = 'none';
-    document.getElementById('batchAddPointsBtn').style.display = 'none';
-    document.getElementById('batchSubtractPointsBtn').style.display = 'none';
+    document.getElementById('batchPointsBtn').style.display = 'none';
     document.getElementById('cancelMultiSelectBtn').style.display = 'none';
   },
 
@@ -351,8 +340,7 @@ const App = {
 
   updateSelectionButtons() {
     const count = this.multiSelectedIds.size;
-    document.getElementById('batchAddPointsBtn').style.display = count > 0 ? 'inline-flex' : 'none';
-    document.getElementById('batchSubtractPointsBtn').style.display = count > 0 ? 'inline-flex' : 'none';
+    document.getElementById('batchPointsBtn').style.display = count > 0 ? 'inline-flex' : 'none';
     const selectAllBtn = document.getElementById('selectAllBtn');
     if (selectAllBtn) {
       selectAllBtn.innerHTML = count === this.students.length && this.students.length > 0
@@ -361,27 +349,28 @@ const App = {
     }
   },
 
-  showBatchPointsModal(type) {
+  showBatchPointsModal() {
     if (!Auth.requireAuth()) return;
-    if (!this.multiSelectedIds.size) { alert('请至少选择一名学生！'); return; }
+    if (!this.multiSelectedIds.size) { UI.alert('请至少选择一名学生！'); return; }
     const selected = this.students.filter(s => this.multiSelectedIds.has(s.id));
     const names = selected.map(s => s.name).join(', ');
-    const title = type === 'add' ? '批量加分' : '批量减分';
-    const filteredRules = this.rules.filter(r => type === 'add' ? r.points > 0 : r.points < 0);
+    const title = '批量加减分';
+    const posRules = this.rules.filter(r => r.points > 0);
+    const negRules = this.rules.filter(r => r.points < 0);
+    const mkRule = (r) => `<div class="rule-option ${r.points > 0 ? 'positive' : 'negative'}" data-points="${r.points}" data-name="${r.name}">
+      <span>${r.name}</span><span>${r.points > 0 ? '+' : ''}${r.points}</span></div>`;
+    let rulesHtml = '';
+    posRules.forEach(r => rulesHtml += mkRule(r));
+    if (negRules.length) rulesHtml += '<div style="grid-column:1/-1;"><hr style="margin:10px 0;border-style:dashed;"></div>';
+    negRules.forEach(r => rulesHtml += mkRule(r));
     let html = `
       <h3>${title}</h3>
       <div class="multi-select-info"><p>操作对象 (${selected.length}人):</p><span>${names}</span></div>
-      <div class="rules-options">`;
-    filteredRules.forEach(r => {
-      const sign = r.points > 0 ? '+' : '';
-      html += `<div class="rule-option ${r.points > 0 ? 'positive' : 'negative'}" data-points="${r.points}" data-name="${r.name}">
-        <span>${r.name}</span><span>${sign}${r.points}</span></div>`;
-    });
-    html += `</div>
+      <div class="rules-options">${rulesHtml}</div>
       <div class="custom-points mt-3">
-        <h4>自定义${title}</h4>
+        <h4>自定义加减分</h4>
         <div class="form-group">
-          <input type="number" id="customPoints" class="form-control" placeholder="分数">
+          <input type="number" id="customPoints" class="form-control" placeholder="分数(正数加分,负数减分)">
           <input type="text" id="customReason" class="form-control mt-2" placeholder="原因">
           <button id="applyCustomBtn" class="btn btn-primary mt-2">应用</button>
         </div>
@@ -407,9 +396,7 @@ const App = {
       const rsnInput = document.getElementById('customReason');
       let pts = parseInt(ptsInput.value);
       const rsn = rsnInput.value.trim() || '自定义';
-      if (isNaN(pts)) { alert('请输入有效的分数！'); return; }
-      if (type === 'subtract' && pts > 0) pts = -pts;
-      if (type === 'add' && pts < 0) pts = Math.abs(pts);
+      if (isNaN(pts)) { UI.alert('请输入有效的分数！'); return; }
       UI.confirm('确认操作', `确定为选中的 ${selected.length} 名学生 ${pts > 0 ? '加' : '减'} ${Math.abs(pts)} 分吗？`, async () => {
         await API.batchPoints([...App.multiSelectedIds], pts, rsn);
         App.multiSelectedIds.clear();
@@ -419,98 +406,6 @@ const App = {
         UI.closeModal();
       });
     };
-  },
-
-  /** 快捷多选加分：直接打开选人弹窗，无需进入多选模式 */
-  showQuickMultiAddModal() {
-    if (!Auth.requireAuth()) return;
-    let html = `
-      <h3><i class="fas fa-check-double"></i> 多选加分</h3>
-      <div style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px;margin:10px 0;">
-        <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
-          <button id="qmaSelectAllBtn" class="btn btn-sm btn-secondary"><i class="fas fa-check-square"></i> 全选</button>
-          <button id="qmaDeselectAllBtn" class="btn btn-sm btn-white"><i class="far fa-square"></i> 取消全选</button>
-          <span style="font-size:13px;color:var(--text-light);align-self:center;" id="qmaCount">已选 0 人</span>
-        </div>
-        <div id="qmaStudentList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px;">`;
-    this.students.forEach(s => {
-      html += `<label style="display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);cursor:pointer;font-size:14px;background:${s.gender === 'female' ? 'var(--girl-light)' : 'var(--boy-light)'}22;">
-        <input type="checkbox" class="qma-checkbox" data-id="${s.id}" style="width:16px;height:16px;">
-        <span>${s.name}</span>
-      </label>`;
-    });
-    html += `</div></div>
-      <div class="rules-options">`;
-    this.rules.filter(r => r.points > 0).forEach(r => {
-      html += `<div class="rule-option positive" data-points="${r.points}" data-name="${r.name}">
-        <span>${r.name}</span><span>+${r.points}</span></div>`;
-    });
-    html += `</div>
-      <div class="custom-points mt-3">
-        <h4>自定义加分</h4>
-        <div class="form-group">
-          <input type="number" id="qmaPoints" class="form-control" placeholder="分数">
-          <input type="text" id="qmaReason" class="form-control mt-2" placeholder="原因">
-          <button id="qmaApplyBtn" class="btn btn-primary mt-2"><i class="fas fa-check"></i> 确认加分</button>
-        </div>
-      </div>`;
-    UI.openModal(html, '多选加分');
-
-    // 全选/取消
-    document.getElementById('qmaSelectAllBtn').onclick = () => {
-      document.querySelectorAll('.qma-checkbox').forEach(cb => cb.checked = true);
-      App.updateQmaCount();
-    };
-    document.getElementById('qmaDeselectAllBtn').onclick = () => {
-      document.querySelectorAll('.qma-checkbox').forEach(cb => cb.checked = false);
-      App.updateQmaCount();
-    };
-    document.querySelectorAll('.qma-checkbox').forEach(cb => {
-      cb.addEventListener('change', App.updateQmaCount);
-    });
-
-    // 规则点击
-    document.querySelectorAll('#modal .rule-option').forEach(el => {
-      el.onclick = async () => {
-        const pts = parseInt(el.dataset.points);
-        const rsn = el.dataset.name;
-        const ids = App.getSelectedQmaIds();
-        if (!ids.length) { alert('请至少选择一名学生！'); return; }
-        UI.confirm('确认加分', `确定为 ${ids.length} 名学生各加 ${pts} 分（${rsn}）吗？`, async () => {
-          await API.batchPoints(ids, pts, rsn);
-          await App.loadStudents();
-          App.renderAll();
-          UI.closeModal();
-        });
-      };
-    });
-
-    // 自定义加分
-    document.getElementById('qmaApplyBtn').onclick = async () => {
-      const pts = parseInt(document.getElementById('qmaPoints').value);
-      const rsn = document.getElementById('qmaReason').value.trim() || '自定义';
-      if (isNaN(pts) || pts <= 0) { alert('请输入有效的正数分数！'); return; }
-      const ids = App.getSelectedQmaIds();
-      if (!ids.length) { alert('请至少选择一名学生！'); return; }
-      UI.confirm('确认加分', `确定为 ${ids.length} 名学生各加 ${pts} 分（${rsn}）吗？`, async () => {
-        await API.batchPoints(ids, pts, rsn);
-        await App.loadStudents();
-        App.renderAll();
-        UI.closeModal();
-      });
-    };
-
-    App.updateQmaCount();
-  },
-
-  getSelectedQmaIds() {
-    return [...document.querySelectorAll('.qma-checkbox:checked')].map(cb => parseInt(cb.dataset.id));
-  },
-
-  updateQmaCount() {
-    const count = document.querySelectorAll('.qma-checkbox:checked').length;
-    const el = document.getElementById('qmaCount');
-    if (el) el.textContent = `已选 ${count} 人`;
   },
 
   // ==================== 模态框 - 加减分 ====================
@@ -896,16 +791,6 @@ const App = {
   },
 
   bindEvents() {
-    // 添加小组
-    document.getElementById('addGroupBtn').addEventListener('click', async () => {
-      const name = document.getElementById('groupName').value.trim();
-      if (!name) return;
-      await API.addGroup(name);
-      document.getElementById('groupName').value = '';
-      await App.loadGroups();
-      App.renderGroups();
-    });
-
     // 搜索
     document.getElementById('studentSearchInput')?.addEventListener('input', () => App.searchStudents());
 
@@ -913,9 +798,7 @@ const App = {
     document.getElementById('multiSelectToggleBtn')?.addEventListener('click', () => App.toggleMultiSelectMode());
     document.getElementById('cancelMultiSelectBtn')?.addEventListener('click', () => App.cancelMultiSelectMode());
     document.getElementById('selectAllBtn')?.addEventListener('click', () => App.toggleSelectAll());
-    document.getElementById('batchAddPointsBtn')?.addEventListener('click', () => App.showBatchPointsModal('add'));
-    document.getElementById('batchSubtractPointsBtn')?.addEventListener('click', () => App.showBatchPointsModal('subtract'));
-    document.getElementById('quickMultiAddBtn')?.addEventListener('click', () => App.showQuickMultiAddModal());
+    document.getElementById('batchPointsBtn')?.addEventListener('click', () => App.showBatchPointsModal());
 
     // 随机点名
     document.getElementById('randomRollCallBtn')?.addEventListener('click', () => RollCall.showModal());

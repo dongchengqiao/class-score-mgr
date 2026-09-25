@@ -8,6 +8,7 @@ const Admin = {
   rules: [],
   shopItems: [],
   students: [],
+  groups: [],
 
   async init() {
     // 检查当前 token 角色：admin 可直接进入，否则显示"登录管理员账号"
@@ -115,6 +116,12 @@ const Admin = {
       if (e.key === 'Enter' && e.ctrlKey) Admin.handleAddStudent();
     });
 
+    // 小组管理
+    document.getElementById('adminAddGroupBtn').addEventListener('click', () => Admin.handleAddGroup());
+    document.getElementById('adminGroupName').addEventListener('keydown', e => {
+      if (e.key === 'Enter') Admin.handleAddGroup();
+    });
+
     // 商店管理
     document.getElementById('adminAddItemBtn').addEventListener('click', () => Admin.handleAddItem());
     document.getElementById('adminItemName').addEventListener('keydown', e => {
@@ -204,11 +211,13 @@ const Admin = {
         Admin.loadRules(),
         Admin.loadShopItems(),
         Admin.loadStudents(),
+        Admin.loadGroups(),
         Admin.loadClassInfo()
       ]);
       Admin.renderRules();
       Admin.renderShop();
       Admin.renderStudents();
+      Admin.renderGroups();
       Admin.setupRulesDragDrop();
     } catch (err) {
       console.error('加载数据失败:', err);
@@ -287,91 +296,91 @@ const Admin = {
 
   async handleSetUserPassword() {
     const newPw = document.getElementById('newUserPassword').value;
-    if (!newPw) { alert('请输入新用户密码'); return; }
+    if (!newPw) { UI.alert('请输入新用户密码'); return; }
     try {
       const res = await API.setUserPassword(newPw);
       if (res.success) {
-        alert('用户密码设置成功！');
+        UI.alert('用户密码设置成功！');
         document.getElementById('newUserPassword').value = '';
         Admin.loadPasswordStatus();
       }
     } catch (err) {
-      alert('设置失败: ' + (err.message || err));
+      UI.alert('设置失败: ' + (err.message || err));
     }
   },
 
   async handleChangeUserPassword() {
     const newPw = document.getElementById('newUserPassword').value;
-    if (!newPw) { alert('请输入新用户密码'); return; }
+    if (!newPw) { UI.alert('请输入新用户密码'); return; }
     try {
       const res = await API.changeUserPassword(newPw);
       if (res.success) {
-        alert('用户密码修改成功！');
+        UI.alert('用户密码修改成功！');
         document.getElementById('newUserPassword').value = '';
         Admin.loadPasswordStatus();
       }
     } catch (err) {
-      alert('修改失败: ' + (err.message || err));
+      UI.alert('修改失败: ' + (err.message || err));
     }
   },
 
   async handleCancelUserPassword() {
-    if (!confirm('确定要取消用户密码吗？用户将无法通过用户密码登录。')) return;
-    try {
-      const res = await API.cancelUserPassword();
-      if (res.success) {
-        alert('已取消用户密码！');
-        document.getElementById('newUserPassword').value = '';
-        Admin.loadPasswordStatus();
+    UI.confirm('取消用户密码', '确定要取消用户密码吗？用户将无法通过用户密码登录。', async () => {
+      try {
+        const res = await API.cancelUserPassword();
+        if (res.success) {
+          UI.alert('已取消用户密码！');
+          Admin.loadPasswordStatus();
+        }
+      } catch (err) {
+        UI.alert('取消失败: ' + (err.message || err));
       }
-    } catch (err) {
-      alert('取消失败: ' + (err.message || err));
-    }
+    });
   },
 
   async handleSetPassword() {
     const newPw = document.getElementById('newPassword').value;
-    if (!newPw) { alert('请输入新密码'); return; }
+    if (!newPw) { UI.alert('请输入新密码'); return; }
     try {
       const res = await API.setPassword(newPw);
       if (res.success) {
         if (res.token) API.setToken(res.token);
-        alert('密码设置成功！');
+        UI.alert('密码设置成功！');
         document.getElementById('newPassword').value = '';
         Admin.loadPasswordStatus();
       }
     } catch (err) {
-      alert('设置失败: ' + (err.message || err));
+      UI.alert('设置失败: ' + (err.message || err));
     }
   },
 
   async handleChangePassword() {
     const newPw = document.getElementById('newPassword').value;
-    if (!newPw) { alert('请输入新密码'); return; }
+    if (!newPw) { UI.alert('请输入新密码'); return; }
     try {
       const res = await API.changePassword(newPw);
       if (res.success) {
-        alert('密码修改成功！');
+        UI.alert('密码修改成功！');
         document.getElementById('newPassword').value = '';
         Admin.loadPasswordStatus();
       }
     } catch (err) {
-      alert('修改失败: ' + (err.message || err));
+      UI.alert('修改失败: ' + (err.message || err));
     }
   },
 
   async handleCancelPassword() {
-    if (!confirm('确定要取消密码保护吗？任何人都可以访问此系统。')) return;
-    try {
-      const res = await API.cancelPassword();
-      if (res.success) {
-        alert('已取消密码保护！');
-        document.getElementById('newPassword').value = '';
-        Admin.loadPasswordStatus();
+    UI.confirm('取消密码保护', '确定要取消密码保护吗？任何人都可以访问此系统。', async () => {
+      try {
+        const res = await API.cancelPassword();
+        if (res.success) {
+          UI.alert('已取消密码保护！');
+          Admin.loadPasswordStatus();
+        }
+      } catch (err) {
+        UI.alert('取消失败: ' + (err.message || err));
       }
-    } catch (err) {
-      alert('取消失败: ' + (err.message || err));
-    }
+    });
   },
 
   // ==================== 数据管理 ====================
@@ -387,7 +396,7 @@ const Admin = {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      alert('导出失败: ' + (err.message || err));
+      UI.alert('导出失败: ' + (err.message || err));
     }
   },
 
@@ -397,12 +406,17 @@ const Admin = {
     try {
       const text = await file.text();
       const data = JSON.parse(text);
-      if (!confirm(`确定要导入数据吗？当前所有数据将被替换！\n文件大小: ${(text.length / 1024).toFixed(1)}KB`)) return;
-      await API.importData(data);
-      alert('数据导入成功！');
-      Admin.loadData();
+      UI.confirm('导入数据', `确定要导入数据吗？当前所有数据将被替换！<br>文件大小: ${(text.length / 1024).toFixed(1)}KB`, async () => {
+        try {
+          await API.importData(data);
+          UI.alert('数据导入成功！');
+          Admin.loadData();
+        } catch (err) {
+          UI.alert('导入失败: ' + (err.message || err));
+        }
+      });
     } catch (err) {
-      alert('导入失败: ' + (err.message || err));
+      UI.alert('导入失败: ' + (err.message || err));
     }
     e.target.value = '';
   },
@@ -410,19 +424,19 @@ const Admin = {
   async handleExportReport() {
     const startDate = document.getElementById('reportStartDate').value;
     const endDate = document.getElementById('reportEndDate').value;
-    if (!startDate || !endDate) { alert('请选择日期范围'); return; }
+    if (!startDate || !endDate) { UI.alert('请选择日期范围'); return; }
 
     try {
       const report = await API.exportReport(startDate, endDate);
       Admin.downloadExcelReport(report, startDate, endDate);
     } catch (err) {
-      alert('导出报表失败: ' + (err.message || err));
+      UI.alert('导出报表失败: ' + (err.message || err));
     }
   },
 
   downloadExcelReport(report, startDate, endDate) {
     if (typeof XLSX === 'undefined') {
-      alert('XLSX 库未加载，请检查网络连接');
+      UI.alert('XLSX 库未加载，请检查网络连接');
       return;
     }
 
@@ -493,7 +507,7 @@ const Admin = {
   async handleAddSetting() {
     const key = document.getElementById('settingKey').value.trim();
     const value = document.getElementById('settingValue').value.trim();
-    if (!key) { alert('请输入设置键名'); return; }
+    if (!key) { UI.alert('请输入设置键名'); return; }
 
     try {
       const data = await API.request('PUT', `/api/admin/settings/${encodeURIComponent(key)}`, { value });
@@ -502,21 +516,22 @@ const Admin = {
         document.getElementById('settingValue').value = '';
         Admin.loadSettings();
       } else {
-        alert('添加失败: ' + (data.error || '未知错误'));
+        UI.alert('添加失败: ' + (data.error || '未知错误'));
       }
     } catch (err) {
-      alert('添加失败: ' + (err.message || err));
+      UI.alert('添加失败: ' + (err.message || err));
     }
   },
 
   async handleDeleteSetting(key) {
-    if (!confirm(`确定删除设置 "${key}" 吗？`)) return;
-    try {
-      const data = await API.request('DELETE', `/api/admin/settings/${encodeURIComponent(key)}`);
-      if (data.success) Admin.loadSettings();
-    } catch (err) {
-      alert('删除失败: ' + (err.message || err));
-    }
+    UI.confirm('删除设置', `确定删除设置 "${key}" 吗？`, async () => {
+      try {
+        const data = await API.request('DELETE', `/api/admin/settings/${encodeURIComponent(key)}`);
+        if (data.success) Admin.loadSettings();
+      } catch (err) {
+        UI.alert('删除失败: ' + (err.message || err));
+      }
+    });
   },
 
   async handleSaveClassInfo() {
@@ -537,30 +552,34 @@ const Admin = {
   // ==================== 危险操作 ====================
 
   async handleResetAllPoints() {
-    if (!confirm('⚠️ 积分清零：确定要将所有学生的积分和历史记录清零吗？此操作不可撤销！')) return;
-    if (!confirm('二次确认：这将清除所有学生的积分和积分历史记录，确定继续吗？')) return;
-    try {
-      const res = await API.resetAllPoints();
-      alert(res.message || '积分已清零！');
-      Admin.loadData();
-    } catch (err) {
-      alert('清零失败: ' + (err.message || err));
-    }
+    UI.confirm('积分清零', '⚠️ 确定要将所有学生的积分和历史记录清零吗？此操作不可撤销！', () => {
+      UI.confirm('二次确认', '这将清除所有学生的积分和积分历史记录，确定继续吗？', async () => {
+        try {
+          const res = await API.resetAllPoints();
+          UI.alert(res.message || '积分已清零！');
+          Admin.loadData();
+        } catch (err) {
+          UI.alert('清零失败: ' + (err.message || err));
+        }
+      });
+    });
   },
 
   async handleDeleteAllStudents() {
-    if (!confirm('⚠️ 警告：此操作将删除所有学生数据和小组数据，不可恢复！')) return;
-    if (!confirm('二次确认：确定要删除所有学生和小组数据吗？')) return;
-    try {
-      await API.deleteAllStudents();
-      // 删除所有小组
-      const groups = await API.getGroups();
-      for (const g of groups) await API.deleteGroup(g.id);
-      alert('已删除所有学生和小组数据！');
-      Admin.loadData();
-    } catch (err) {
-      alert('删除失败: ' + (err.message || err));
-    }
+    UI.confirm('删除所有数据', '⚠️ 此操作将删除所有学生数据和小组数据，不可恢复！', () => {
+      UI.confirm('二次确认', '确定要删除所有学生和小组数据吗？', async () => {
+        try {
+          await API.deleteAllStudents();
+          // 删除所有小组
+          const groups = await API.getGroups();
+          for (const g of groups) await API.deleteGroup(g.id);
+          UI.alert('已删除所有学生和小组数据！');
+          Admin.loadData();
+        } catch (err) {
+          UI.alert('删除失败: ' + (err.message || err));
+        }
+      });
+    });
   },
 
   // ==================== 规则管理 ====================
@@ -598,11 +617,13 @@ const Admin = {
       btn.onclick = () => Admin.showEditRuleModal(parseInt(btn.dataset.id));
     });
     el.querySelectorAll('.delete-rule-btn').forEach(btn => {
-      btn.onclick = async () => {
-        if (!confirm('确定要删除这条规则吗？')) return;
-        await API.deleteRule(parseInt(btn.dataset.id));
-        await Admin.loadRules();
-        Admin.renderRules();
+      btn.onclick = () => {
+        const rule = Admin.rules.find(r => r.id === parseInt(btn.dataset.id));
+        UI.confirm('删除规则', `确定要删除规则「${rule ? rule.name : ''}」吗？`, async () => {
+          await API.deleteRule(parseInt(btn.dataset.id));
+          await Admin.loadRules();
+          Admin.renderRules();
+        });
       };
     });
   },
@@ -610,7 +631,7 @@ const Admin = {
   async handleAddRule() {
     const name = document.getElementById('adminRuleName').value.trim();
     const points = parseInt(document.getElementById('adminRulePoints').value);
-    if (!name || isNaN(points)) { alert('请填写规则名称和分值'); return; }
+    if (!name || isNaN(points)) { UI.alert('请填写规则名称和分值'); return; }
     try {
       await API.addRule(name, points);
       document.getElementById('adminRuleName').value = '';
@@ -618,7 +639,7 @@ const Admin = {
       await Admin.loadRules();
       Admin.renderRules();
     } catch (err) {
-      alert('添加规则失败: ' + (err.message || err));
+      UI.alert('添加规则失败: ' + (err.message || err));
     }
   },
 
@@ -644,7 +665,7 @@ const Admin = {
     document.getElementById('saveRuleChanges').onclick = () => {
       const name = document.getElementById('editRuleName').value.trim();
       const points = parseInt(document.getElementById('editRulePoints').value);
-      if (!name || isNaN(points)) { alert('请输入有效的信息！'); return; }
+      if (!name || isNaN(points)) { UI.alert('请输入有效的信息！'); return; }
       Admin.saveEditRule(ruleId, name, points);
     };
   },
@@ -656,7 +677,7 @@ const Admin = {
       Admin.renderRules();
       if (typeof UI !== 'undefined' && UI.closeModal) UI.closeModal();
     } catch (err) {
-      alert('保存失败: ' + (err.message || err));
+      UI.alert('保存失败: ' + (err.message || err));
     }
   },
 
@@ -691,11 +712,13 @@ const Admin = {
       btn.onclick = () => Admin.showEditShopItemModal(parseInt(btn.dataset.id));
     });
     el.querySelectorAll('.delete-item-btn').forEach(btn => {
-      btn.onclick = async () => {
-        if (!confirm('确定要删除这个商品吗？')) return;
-        await API.deleteShopItem(parseInt(btn.dataset.id));
-        await Admin.loadShopItems();
-        Admin.renderShop();
+      btn.onclick = () => {
+        const item = Admin.shopItems.find(i => i.id === parseInt(btn.dataset.id));
+        UI.confirm('删除商品', `确定要删除商品「${item ? item.name : ''}」吗？`, async () => {
+          await API.deleteShopItem(parseInt(btn.dataset.id));
+          await Admin.loadShopItems();
+          Admin.renderShop();
+        });
       };
     });
   },
@@ -704,7 +727,7 @@ const Admin = {
     const name = document.getElementById('adminItemName').value.trim();
     const cost = parseInt(document.getElementById('adminItemCost').value);
     const stock = parseInt(document.getElementById('adminItemStock').value);
-    if (!name || isNaN(cost) || isNaN(stock)) { alert('请填写完整的商品信息'); return; }
+    if (!name || isNaN(cost) || isNaN(stock)) { UI.alert('请填写完整的商品信息'); return; }
     try {
       await API.addShopItem(name, cost, stock);
       document.getElementById('adminItemName').value = '';
@@ -713,7 +736,7 @@ const Admin = {
       await Admin.loadShopItems();
       Admin.renderShop();
     } catch (err) {
-      alert('添加商品失败: ' + (err.message || err));
+      UI.alert('添加商品失败: ' + (err.message || err));
     }
   },
 
@@ -741,7 +764,7 @@ const Admin = {
       const name = document.getElementById('editItemName').value.trim();
       const cost = parseInt(document.getElementById('editItemCost').value);
       const stock = parseInt(document.getElementById('editItemStock').value);
-      if (!name || isNaN(cost) || isNaN(stock)) { alert('请输入有效的信息！'); return; }
+      if (!name || isNaN(cost) || isNaN(stock)) { UI.alert('请输入有效的信息！'); return; }
       Admin.saveEditShopItem(itemId, name, cost, stock);
     };
   },
@@ -753,7 +776,7 @@ const Admin = {
       Admin.renderShop();
       if (typeof UI !== 'undefined' && UI.closeModal) UI.closeModal();
     } catch (err) {
-      alert('保存失败: ' + (err.message || err));
+      UI.alert('保存失败: ' + (err.message || err));
     }
   },
 
@@ -792,16 +815,17 @@ const Admin = {
         const id = parseInt(btn.dataset.id);
         const student = Admin.students.find(s => s.id === id);
         if (!student) return;
-        if (!confirm(`确定要删除学生 ${student.name} 吗？此操作不可撤销！`)) return;
-        try {
-          await API.deleteStudent(id);
-          await Admin.loadStudents();
-          Admin.renderStudents();
-          // 刷新统计
-          Admin.loadStats();
-        } catch (err) {
-          alert('删除失败: ' + (err.message || err));
-        }
+        UI.confirm('删除学生', `确定要删除学生「${student.name}」吗？此操作不可撤销！`, async () => {
+          try {
+            await API.deleteStudent(id);
+            await Admin.loadStudents();
+            Admin.renderStudents();
+            // 刷新统计
+            Admin.loadStats();
+          } catch (err) {
+            UI.alert('删除失败: ' + (err.message || err));
+          }
+        });
       });
     });
   },
@@ -809,9 +833,9 @@ const Admin = {
   async handleAddStudent() {
     const text = document.getElementById('adminStudentNames').value.trim();
     const gender = document.querySelector('input[name="adminGender"]:checked')?.value || 'male';
-    if (!text) { alert('请输入学生姓名'); return; }
+    if (!text) { UI.alert('请输入学生姓名'); return; }
     const names = text.split('\n').filter(n => n.trim());
-    if (!names.length) { alert('请输入有效的学生姓名'); return; }
+    if (!names.length) { UI.alert('请输入有效的学生姓名'); return; }
     try {
       await API.addStudents(names, gender);
       document.getElementById('adminStudentNames').value = '';
@@ -819,7 +843,69 @@ const Admin = {
       Admin.renderStudents();
       Admin.loadStats();
     } catch (err) {
-      alert('添加失败: ' + (err.message || err));
+      UI.alert('添加失败: ' + (err.message || err));
+    }
+  },
+
+  // ==================== 小组管理 ====================
+
+  async loadGroups() {
+    try {
+      Admin.groups = await API.getGroups();
+    } catch (err) {
+      console.error('加载小组失败:', err);
+    }
+  },
+
+  renderGroups() {
+    const el = document.getElementById('adminGroupsList');
+    if (!el) return;
+
+    if (!Admin.groups.length) {
+      el.innerHTML = '<div class="admin-student-empty">暂无小组，请添加</div>';
+      return;
+    }
+
+    el.innerHTML = Admin.groups.map(g => `
+      <div class="admin-student-item" data-id="${g.id}">
+        <div class="admin-student-avatar" style="background:var(--secondary);"><i class="fas fa-users"></i></div>
+        <span class="admin-student-name">${g.name}</span>
+        <button class="admin-student-delete-btn" data-id="${g.id}" title="删除小组"><i class="fas fa-times"></i></button>
+      </div>
+    `).join('');
+
+    // 绑定删除事件
+    el.querySelectorAll('.admin-student-delete-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const id = parseInt(btn.dataset.id);
+        const group = Admin.groups.find(g => g.id === id);
+        if (!group) return;
+        UI.confirm('删除小组', `确定要删除小组「${group.name}」吗？组内学生将返回未分组状态。`, async () => {
+          try {
+            await API.deleteGroup(id);
+            await Admin.loadGroups();
+            Admin.renderGroups();
+            Admin.loadStats();
+          } catch (err) {
+            UI.alert('删除失败: ' + (err.message || err));
+          }
+        });
+      });
+    });
+  },
+
+  async handleAddGroup() {
+    const name = document.getElementById('adminGroupName').value.trim();
+    if (!name) { UI.alert('请输入小组名称'); return; }
+    try {
+      await API.addGroup(name);
+      document.getElementById('adminGroupName').value = '';
+      await Admin.loadGroups();
+      Admin.renderGroups();
+      Admin.loadStats();
+    } catch (err) {
+      UI.alert('添加失败: ' + (err.message || err));
     }
   },
 

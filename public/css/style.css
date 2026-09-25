@@ -498,7 +498,7 @@ body.multi-select-mode .student-card .multi-select-checkbox { display: block; }
   justify-content: space-between;
   align-items: center;
   position: relative;
-  background: linear-gradient(135deg, var(--secondary), var(--accent3));
+  background: var(--secondary);
   color: white;
 }
 
@@ -1243,8 +1243,7 @@ body.multi-select-mode .student-card .multi-select-checkbox { display: block; }
 }
 
 /* ======= 访客模式 ======= */
-.guest-mode .add-btn,
-.guest-mode .subtract-btn,
+.guest-mode .points-btn,
 .guest-mode .shop-btn,
 .guest-mode .edit-student-btn,
 .guest-mode .remove-from-group-btn { display: none !important; }
@@ -1254,11 +1253,9 @@ body.multi-select-mode .student-card .multi-select-checkbox { display: block; }
 .guest-mode #exportData,
 .guest-mode #importData,
 .guest-mode #multiSelectToggleBtn,
-.guest-mode #quickMultiAddBtn,
 .guest-mode #selectAllBtn,
 .guest-mode #cancelMultiSelectBtn,
-.guest-mode #batchAddPointsBtn,
-.guest-mode #batchSubtractPointsBtn { display: none !important; }
+.guest-mode #batchPointsBtn { display: none !important; }
 
 .guest-mode .group-actions .btn { display: none !important; }
 .guest-mode .purchase-btn { display: none !important; }

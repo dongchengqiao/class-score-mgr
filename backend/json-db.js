@@ -16,7 +16,7 @@ function getDefaultData() {
   return {
     students: [],
     groups: [],
-    rules: [],
+    rules: { add: [], minus: [] },
     shopItems: [],
     settings: {},
     _sequences: { students: 0, groups: 0, rules: 0, shopItems: 0, history: 0 }
@@ -91,8 +91,25 @@ if (data.history) {
   save();
 }
 
+// === 迁移：将旧版扁平 rules 数组转换为 { add, minus } 结构 ===
+// 旧格式: data.rules = [ {id,name,points,sort_order,...}, ... ]
+// 新格式: data.rules = { add: [...], minus: [...] }
+if (Array.isArray(data.rules)) {
+  const oldRules = data.rules;
+  data.rules = { add: [], minus: [] };
+  for (const r of oldRules) {
+    const target = r.points >= 0 ? 'add' : 'minus';
+    data.rules[target].push(r);
+  }
+  save();
+  console.log('✅ 已迁移规则存储格式为 { add, minus }');
+}
+
 // 首次运行时插入默认规则
-if (data.rules.length === 0) {
+if (!data.rules || (!data.rules.add && !data.rules.minus)) {
+  data.rules = { add: [], minus: [] };
+}
+if (data.rules.add.length === 0 && data.rules.minus.length === 0) {
   const defaultRules = [
     ['回答问题正确', 1, 1],
     ['认真完成作业', 2, 2],
@@ -107,7 +124,8 @@ if (data.rules.length === 0) {
   ];
   for (const [name, points, order] of defaultRules) {
     const id = nextSeq('rules');
-    data.rules.push({ id, name, points, sort_order: order, created_at: nowISO() });
+    const target = points >= 0 ? 'add' : 'minus';
+    data.rules[target].push({ id, name, points, sort_order: order, created_at: nowISO() });
   }
   save();
   console.log('✅ 已插入默认规则');
@@ -141,10 +159,15 @@ renumberHistoryIds();
 (function syncSequences() {
   const maxId = (arr, key) => arr.reduce((max, item) => Math.max(max, item[key] || 0), 0);
   let changed = false;
+  const allRules = [
+    ...(Array.isArray(data.rules) ? data.rules : []),
+    ...(data.rules && Array.isArray(data.rules.add) ? data.rules.add : []),
+    ...(data.rules && Array.isArray(data.rules.minus) ? data.rules.minus : [])
+  ];
   const targets = {
     students: maxId(data.students, 'id'),
     groups: maxId(data.groups, 'id'),
-    rules: maxId(data.rules, 'id'),
+    rules: maxId(allRules, 'id'),
     shopItems: maxId(data.shopItems, 'id')
   };
   for (const key of Object.keys(targets)) {
@@ -343,39 +366,65 @@ const DB = {
 
   // ******************** 规则 ********************
 
+  // 内部：返回扁平合并后的规则数组（保持向后兼容）
+  _allRules() {
+    const add = Array.isArray(data.rules.add) ? data.rules.add : [];
+    const minus = Array.isArray(data.rules.minus) ? data.rules.minus : [];
+    return [...add, ...minus];
+  },
+
+  // 内部：根据 points 符号返回所属数组（add / minus）
+  _ruleBucket(points) {
+    return points >= 0 ? 'add' : 'minus';
+  },
+
   getRules() {
-    return [...data.rules].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || a.id - b.id);
+    return this._allRules().sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || a.id - b.id);
   },
 
   getRule(id) {
-    return data.rules.find(r => r.id === id) || null;
+    return this._allRules().find(r => r.id === id) || null;
   },
 
   addRule(name, points) {
     const id = nextSeq('rules');
-    const maxOrder = data.rules.reduce((max, r) => Math.max(max, r.sort_order || 0), 0);
+    const bucket = this._ruleBucket(points);
+    const maxOrder = data.rules[bucket].reduce((max, r) => Math.max(max, r.sort_order || 0), 0);
     const rule = {
       id, name, points,
       sort_order: maxOrder + 1,
       created_at: nowISO()
     };
-    data.rules.push(rule);
+    data.rules[bucket].push(rule);
     save();
     return id;
   },
 
   updateRule(id, fields) {
-    const idx = data.rules.findIndex(r => r.id === id);
-    if (idx === -1) return null;
-    Object.assign(data.rules[idx], fields);
+    const r = this.getRule(id);
+    if (!r) return null;
+    // 若分值符号改变，需要移动到对应数组
+    if (fields.points !== undefined && fields.points !== r.points) {
+      const oldBucket = this._ruleBucket(r.points);
+      const newBucket = this._ruleBucket(fields.points);
+      if (oldBucket !== newBucket) {
+        data.rules[oldBucket] = data.rules[oldBucket].filter(x => x.id !== id);
+        Object.assign(r, fields);
+        data.rules[newBucket].push(r);
+        save();
+        return r;
+      }
+    }
+    Object.assign(r, fields);
     save();
-    return data.rules[idx];
+    return r;
   },
 
   deleteRule(id) {
-    const idx = data.rules.findIndex(r => r.id === id);
-    if (idx === -1) return false;
-    data.rules.splice(idx, 1);
+    const r = this.getRule(id);
+    if (!r) return false;
+    const bucket = this._ruleBucket(r.points);
+    data.rules[bucket] = data.rules[bucket].filter(x => x.id !== id);
     save();
     return true;
   },
@@ -573,7 +622,7 @@ const DB = {
     // 清空数据
     data.students = [];
     data.groups = [];
-    data.rules = [];
+    data.rules = { add: [], minus: [] };
     data.shopItems = [];
     data.settings = {};
 
@@ -605,15 +654,20 @@ const DB = {
       }
     }
 
-    // 导入规则
-    if (importData.rules && Array.isArray(importData.rules)) {
-      for (const r of importData.rules) {
-        data.rules.push({
-          id: r.id, name: r.name, points: r.points,
-          sort_order: r.sort_order || 0,
-          created_at: r.created_at || nowISO()
-        });
-      }
+    // 导入规则（兼容旧扁平数组格式与新 { add, minus } 格式）
+    const importRules = Array.isArray(importData.rules)
+      ? importData.rules
+      : [
+          ...(importData.rules && Array.isArray(importData.rules.add) ? importData.rules.add : []),
+          ...(importData.rules && Array.isArray(importData.rules.minus) ? importData.rules.minus : [])
+        ];
+    for (const r of importRules) {
+      const bucket = r.points >= 0 ? 'add' : 'minus';
+      data.rules[bucket].push({
+        id: r.id, name: r.name, points: r.points,
+        sort_order: r.sort_order || 0,
+        created_at: r.created_at || nowISO()
+      });
     }
 
     // 导入商店商品
@@ -652,10 +706,14 @@ const DB = {
       for (const s of data.students) {
         if (Array.isArray(s.history)) allHistory.push(...s.history);
       }
+      const allRules = [
+        ...(Array.isArray(data.rules.add) ? data.rules.add : []),
+        ...(Array.isArray(data.rules.minus) ? data.rules.minus : [])
+      ];
       data._sequences = {
         students: maxId(data.students, 'id'),
         groups: maxId(data.groups, 'id'),
-        rules: maxId(data.rules, 'id'),
+        rules: maxId(allRules, 'id'),
         shopItems: maxId(data.shopItems, 'id'),
         // history 语义为「历史记录总条数」（统计用）
         history: allHistory.length

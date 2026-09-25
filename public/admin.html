@@ -158,6 +158,25 @@
         </div>
       </div>
 
+      <!-- 小组管理 -->
+      <div class="admin-section">
+        <h2 class="section-title"><i class="fas fa-users"></i> 小组管理</h2>
+        <div class="admin-card">
+          <div class="admin-card-body">
+            <div class="admin-form-row">
+              <div class="admin-form-group">
+                <label>小组名称</label>
+                <input type="text" id="adminGroupName" class="form-control" placeholder="如: 第一组">
+              </div>
+              <div class="admin-form-actions" style="align-self:flex-end;">
+                <button id="adminAddGroupBtn" class="btn btn-primary"><i class="fas fa-plus"></i> 添加小组</button>
+              </div>
+            </div>
+            <div id="adminGroupsList" class="admin-student-list" style="margin-top:15px;"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- 密码管理 -->
       <div class="admin-section">
         <h2 class="section-title"><i class="fas fa-key"></i> 密码管理</h2>
@@ -319,7 +338,19 @@
     </div>
   </div>
 
+  <!-- ======= 通用操作弹窗 ======= -->
+  <div id="modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">操作</h3>
+        <span class="close">&times;</span>
+      </div>
+      <div class="modal-body" id="modalContent"></div>
+    </div>
+  </div>
+
   <script src="js/api.js"></script>
+  <script src="js/ui.js"></script>
   <script src="js/admin.js"></script>
 </body>
 </html>

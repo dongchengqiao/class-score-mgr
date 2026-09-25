@@ -72,10 +72,8 @@
               <div class="student-list-controls">
                 <button id="randomRollCallBtn" class="btn btn-sm btn-accent2"><i class="fas fa-dice"></i> 随机点名</button>
                 <button id="multiSelectToggleBtn" class="btn btn-sm btn-secondary"><i class="fas fa-tasks"></i> 批量操作</button>
-                <button id="quickMultiAddBtn" class="btn btn-sm btn-primary"><i class="fas fa-plus-circle"></i> 多选加分</button>
                 <button id="selectAllBtn" class="btn btn-sm btn-white" style="display:none;"><i class="fas fa-check-square"></i> 全选</button>
-                <button id="batchAddPointsBtn" class="btn btn-sm btn-primary" style="display:none;"><i class="fas fa-plus-circle"></i> 批量加分</button>
-                <button id="batchSubtractPointsBtn" class="btn btn-sm btn-danger" style="display:none;"><i class="fas fa-minus-circle"></i> 批量减分</button>
+                <button id="batchPointsBtn" class="btn btn-sm btn-primary" style="display:none;"><i class="fas fa-plus-minus"></i> 批量加减分</button>
                 <button id="cancelMultiSelectBtn" class="btn btn-sm btn-white" style="display:none;"><i class="fas fa-times"></i> 取消</button>
               </div>
             </div>
@@ -99,19 +97,6 @@
 
         <!-- 小组管理 -->
         <div id="groups" class="tab-content">
-          <div class="card">
-            <div class="card-header">
-              <h2 class="card-title"><i class="fas fa-layer-group"></i> 创建小组</h2>
-            </div>
-            <div class="card-body">
-              <div class="form-group">
-                <div class="d-flex gap-2">
-                  <input type="text" id="groupName" class="form-control" placeholder="输入小组名称">
-                  <button id="addGroupBtn" class="btn btn-secondary"><i class="fas fa-plus"></i> 添加小组</button>
-                </div>
-              </div>
-            </div>
-          </div>
           <div id="groupsArea" class="group-container"></div>
         </div>
       </div>
