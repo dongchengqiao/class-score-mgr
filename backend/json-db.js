@@ -1,11 +1,11 @@
 // ============================================================
 // JSON 数据引擎 — 替代 SQLite
-// 所有数据存储在 backend/data/class-data.json
+// 所有数据存储在项目根目录的 data/class-data.json
 // ============================================================
 const fs = require('fs');
 const path = require('path');
 
-const DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = path.join(__dirname, '..', 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 const DATA_FILE = path.join(DATA_DIR, 'class-data.json');
 

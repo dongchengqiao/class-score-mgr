@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const DB = require('../json-db');
 
-const OLD_FILE = path.join(__dirname, '..', 'data', 'morning-reading.json');
+const OLD_FILE = path.join(__dirname, '..', '..', 'data', 'morning-reading.json');
 
 // ==================== 启动迁移 ====================
 // 如果旧的 morning-reading.json 存在，将其数据合并到 class-data.json 后删除

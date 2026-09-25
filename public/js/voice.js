@@ -248,7 +248,7 @@ const Voice = {
   // ==================== 拼音工具 ====================
 
   /** 综合拼音映射（学生姓名 + 常用场景字 + 常见同音替代字）
-   *  从 backend/data/pinyinmap.json 加载 */
+   *  从 /data/pinyinmap.json 加载 */
   EXTENDED_PINYIN: {},
 
   /** 构建拼音映射（从外部 JSON + 学生列表自动合并） */
