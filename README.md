@@ -56,7 +56,11 @@ npm start
 │   │   ├── morning-reading.js# 早读加分
 │   │   └── admin.js          # 统计 / 设置
 ├── data/                     # 数据目录（项目根目录）
-│   ├── class-data.json       # 主数据文件（学生/规则/设置/序列）
+│   ├── config.json           # 设置（settings）+ 自增序列（_sequences）
+│   ├── student.json          # 学生（students，含各自 history）
+│   ├── group.json            # 小组（groups）
+│   ├── rule.json             # 规则（rules，含 add / minus）
+│   ├── shouItems.json        # 售卖物品（shopItems）
 │   └── pinyinmap.json        # 汉字→拼音映射（879 条，语音匹配用）
 ├── public/                   # 前端（纯原生 HTML/CSS/JS）
 │   ├── index.html            # 主页面
@@ -81,7 +85,12 @@ npm start
 
 ## 🧠 数据存储设计
 
-- 所有数据存于项目根目录 `data/class-data.json`，**无数据库依赖**，直接可读可备份
+- 数据按实体拆分存储于项目根目录 `data/` 下的多个 JSON 文件，**无数据库依赖**，直接可读可备份：
+  - `config.json` — 设置 + 自增序列
+  - `student.json` — 学生
+  - `group.json` — 小组
+  - `rule.json` — 规则
+  - `shouItems.json` — 售卖物品
 - 写入采用原子操作（写 `.tmp` 后 rename），避免中途断电损坏文件
 - `_sequences` 自动递增序列：`students` / `groups` / `rules` / `shopItems` 用于生成实体 ID
 - `_sequences.history` 语义为 **历史记录总条数**（统计展示用），每次 `save()` 自动校准
@@ -177,4 +186,4 @@ npm run install:all  # 安装后端依赖
 
 - 语音识别需使用 **Chrome / Edge** 浏览器（Web Speech API）
 - 前后端端口固定 4000，可通过环境变量 `PORT` 修改
-- 备份数据只需拷贝 `data/class-data.json`
+- 备份数据只需拷贝整个 `data/` 目录（或其中的 `config.json` / `student.json` / `group.json` / `rule.json` / `shouItems.json`）

@@ -1,13 +1,28 @@
 // ============================================================
 // JSON 数据引擎 — 替代 SQLite
-// 所有数据存储在项目根目录的 data/class-data.json
+// 数据按实体拆分存储于项目根目录 data/ 下的多个 JSON 文件：
+//   config.json   — 设置（settings）+ 自增序列（_sequences）
+//   student.json  — 学生（students）
+//   group.json    — 小组（groups）
+//   rule.json     — 规则（rules，含 add / minus）
+//   shouItems.json— 售卖物品（shopItems）
 // ============================================================
 const fs = require('fs');
 const path = require('path');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-const DATA_FILE = path.join(DATA_DIR, 'class-data.json');
+
+// 各实体对应的存储文件
+const FILES = {
+  settings: path.join(DATA_DIR, 'config.json'),
+  students: path.join(DATA_DIR, 'student.json'),
+  groups: path.join(DATA_DIR, 'group.json'),
+  rules: path.join(DATA_DIR, 'rule.json'),
+  shopItems: path.join(DATA_DIR, 'shouItems.json')
+};
+// 旧版单一数据文件（用于一次性迁移）
+const LEGACY_FILE = path.join(DATA_DIR, 'class-data.json');
 
 // ==================== 内存数据 ====================
 let data = null;
@@ -23,26 +38,84 @@ function getDefaultData() {
   };
 }
 
-function load() {
+/** 从单个文件读取 JSON；文件不存在或损坏时返回 fallback */
+function readFile(file, fallback) {
   try {
-    if (fs.existsSync(DATA_FILE)) {
-      data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
-    } else {
-      data = getDefaultData();
+    if (fs.existsSync(file)) {
+      return JSON.parse(fs.readFileSync(file, 'utf-8'));
     }
   } catch (err) {
-    console.error('读取数据文件失败:', err);
-    data = getDefaultData();
+    console.error(`读取数据文件失败: ${file}`, err);
   }
+  return fallback;
 }
 
+/** 原子写入单个 JSON 文件 */
+function writeFile(file, value) {
+  const tmp = file + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(value, null, 2), 'utf-8');
+  fs.renameSync(tmp, file);
+}
+
+/** 从 5 个拆分文件加载数据 */
+function load() {
+  data = getDefaultData();
+  // config.json 同时存放 settings 与 _sequences，加载时拆分
+  const cfg = readFile(FILES.settings, {}) || {};
+  data.settings = { ...cfg };
+  delete data.settings._sequences;
+  data.students = readFile(FILES.students, []) || [];
+  data.groups = readFile(FILES.groups, []) || [];
+  data.rules = readFile(FILES.rules, { add: [], minus: [] }) || { add: [], minus: [] };
+  data.shopItems = readFile(FILES.shopItems, []) || [];
+  data._sequences = cfg._sequences || { students: 0, groups: 0, rules: 0, shopItems: 0, history: 0 };
+}
+
+/** 将数据保存到 5 个拆分文件 */
 function save() {
   // _sequences.history 语义为「历史记录总条数」（用于统计展示），每次保存时自动校准
   data._sequences.history = data.students.reduce((sum, s) =>
     sum + (Array.isArray(s.history) ? s.history.length : 0), 0);
-  const tmp = DATA_FILE + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf-8');
-  fs.renameSync(tmp, DATA_FILE);
+  // 序列随设置一起写入 config.json
+  const cfg = { ...data.settings, _sequences: data._sequences };
+  writeFile(FILES.settings, cfg);
+  writeFile(FILES.students, data.students);
+  writeFile(FILES.groups, data.groups);
+  writeFile(FILES.rules, data.rules);
+  writeFile(FILES.shopItems, data.shopItems);
+}
+
+/** 一次性迁移：将旧版 class-data.json 拆分到 5 个文件 */
+function migrateLegacy() {
+  if (!fs.existsSync(LEGACY_FILE)) return;
+  try {
+    const legacy = JSON.parse(fs.readFileSync(LEGACY_FILE, 'utf-8'));
+    console.log('📋 检测到旧版 class-data.json，正在迁移到拆分文件...');
+    data = getDefaultData();
+    data.students = Array.isArray(legacy.students) ? legacy.students : [];
+    data.groups = Array.isArray(legacy.groups) ? legacy.groups : [];
+    // 规则兼容两种旧格式：扁平数组 与 { add, minus }
+    const legacyRules = legacy.rules;
+    if (Array.isArray(legacyRules)) {
+      data.rules = { add: [], minus: [] };
+      for (const r of legacyRules) {
+        data.rules[r.points >= 0 ? 'add' : 'minus'].push(r);
+      }
+    } else if (legacyRules && typeof legacyRules === 'object') {
+      data.rules = { add: legacyRules.add || [], minus: legacyRules.minus || [] };
+    } else {
+      data.rules = { add: [], minus: [] };
+    }
+    data.shopItems = Array.isArray(legacy.shopItems) ? legacy.shopItems : [];
+    data.settings = legacy.settings && typeof legacy.settings === 'object' ? legacy.settings : {};
+    data._sequences = legacy._sequences || { students: 0, groups: 0, rules: 0, shopItems: 0, history: 0 };
+    save();
+    // 迁移成功后重命名旧文件（保留备份，避免误删）
+    fs.renameSync(LEGACY_FILE, LEGACY_FILE + '.bak');
+    console.log('✅ 旧版数据已迁移到拆分文件，原文件已备份为 class-data.json.bak');
+  } catch (err) {
+    console.error('迁移旧版数据失败:', err);
+  }
 }
 
 function nowISO() {
@@ -56,6 +129,8 @@ function nextSeq(entity) {
 }
 
 // 初始化时加载
+// 若存在旧版 class-data.json，先迁移到拆分文件
+migrateLegacy();
 load();
 
 // === 迁移：确保所有学生有 history 字段 ===
@@ -619,11 +694,12 @@ const DB = {
   importAll(importData) {
     if (!importData) throw new Error('无效的导入数据');
 
-    // 清空数据
+    // 清空数据（settings 暂不清空，稍后按是否提供决定恢复或保留）
     data.students = [];
     data.groups = [];
     data.rules = { add: [], minus: [] };
     data.shopItems = [];
+    const preservedSettings = { ...data.settings };
     data.settings = {};
 
     // 导入小组
@@ -691,9 +767,11 @@ const DB = {
       }
     }
 
-    // 导入设置
+    // 导入设置：若导入数据未提供 settings，则保留原有设置（避免清空密码等）
     if (importData.settings && typeof importData.settings === 'object') {
       data.settings = JSON.parse(JSON.stringify(importData.settings));
+    } else {
+      data.settings = preservedSettings;
     }
 
     // 导入序列

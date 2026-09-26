@@ -1,5 +1,7 @@
 .DS_Store
+/data
 class-data.json
+class-data.json.bak
 /早读加分.html
 /班级积分管理.html
 /backend/node_modules
