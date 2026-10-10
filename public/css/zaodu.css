@@ -251,6 +251,29 @@ h1 {
   font-weight: 500;
 }
 
+/* 底部 GitHub 链接 */
+.app-footer {
+  text-align: center;
+  margin-top: 14px;
+  padding: 14px 20px 6px;
+  border-top: 1px dashed rgba(190, 124, 72, 0.45);
+  font-size: 13px;
+}
+.app-footer a {
+  color: #be7c48;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: color 0.2s;
+  font-weight: 600;
+}
+.app-footer a i { font-size: 16px; }
+.app-footer a:hover {
+  color: #a05a28;
+  text-decoration: underline;
+}
+
 /* 响应式 */
 @media (max-width: 720px) {
   .cards-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }

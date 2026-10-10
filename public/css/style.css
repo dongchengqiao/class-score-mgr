@@ -1213,6 +1213,29 @@ body.multi-select-mode .student-card .multi-select-checkbox { display: block; }
   .date-picker-container { flex-direction: column; gap: 10px; }
 }
 
+/* ======= 底部 GitHub 链接 ======= */
+.app-footer {
+  text-align: center;
+  margin-top: 40px;
+  padding: 18px 20px 24px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+.app-footer a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: color 0.2s;
+  font-weight: 600;
+}
+.app-footer a i { font-size: 16px; }
+.app-footer a:hover {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
 /* ======= 作者信息 ======= */
 .author-watermark {
   position: fixed;
