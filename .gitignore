@@ -7,3 +7,4 @@ class-data.json.bak
 /backend/node_modules
 /nogit
 uploads
+/tests

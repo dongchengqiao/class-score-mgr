@@ -206,6 +206,36 @@ if (data.rules.add.length === 0 && data.rules.minus.length === 0) {
   console.log('✅ 已插入默认规则');
 }
 
+function normalizeRuleOrders() {
+  if (!data || !data.rules) return;
+  const allRules = [];
+  for (const bucket of ['add', 'minus']) {
+    if (Array.isArray(data.rules[bucket])) {
+      allRules.push(...data.rules[bucket]);
+    }
+  }
+  if (allRules.length === 0) {
+    data.rules = { add: [], minus: [] };
+    return;
+  }
+
+  const normalized = [...allRules]
+    .sort((a, b) => Number(a.points < 0) - Number(b.points < 0) || (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) || (a.id || 0) - (b.id || 0))
+    .map((rule, index) => ({ ...rule, sort_order: index + 1 }));
+
+  const orderChanged = normalized.some((rule, index) =>
+    allRules[index]?.id !== rule.id || allRules[index]?.sort_order !== rule.sort_order
+  );
+  data.rules = { add: [], minus: [] };
+  for (const rule of normalized) {
+    const bucket = rule.points >= 0 ? 'add' : 'minus';
+    data.rules[bucket].push(rule);
+  }
+  return orderChanged;
+}
+
+if (normalizeRuleOrders()) save();
+
 /** 将每个学生的历史记录 ID 重编号为独立从 1 开始（按数组顺序） */
 function renumberHistoryIds() {
   let changed = false;
@@ -454,6 +484,7 @@ const DB = {
   },
 
   getRules() {
+    normalizeRuleOrders();
     return this._allRules().sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || a.id - b.id);
   },
 
@@ -464,13 +495,14 @@ const DB = {
   addRule(name, points) {
     const id = nextSeq('rules');
     const bucket = this._ruleBucket(points);
-    const maxOrder = data.rules[bucket].reduce((max, r) => Math.max(max, r.sort_order || 0), 0);
+    const nextOrder = Math.max(0, ...this._allRules().map(r => Number(r.sort_order) || 0)) + 1;
     const rule = {
       id, name, points,
-      sort_order: maxOrder + 1,
+      sort_order: nextOrder,
       created_at: nowISO()
     };
     data.rules[bucket].push(rule);
+    normalizeRuleOrders();
     save();
     return id;
   },
@@ -486,11 +518,13 @@ const DB = {
         data.rules[oldBucket] = data.rules[oldBucket].filter(x => x.id !== id);
         Object.assign(r, fields);
         data.rules[newBucket].push(r);
+        normalizeRuleOrders();
         save();
         return r;
       }
     }
     Object.assign(r, fields);
+    normalizeRuleOrders();
     save();
     return r;
   },
@@ -500,16 +534,22 @@ const DB = {
     if (!r) return false;
     const bucket = this._ruleBucket(r.points);
     data.rules[bucket] = data.rules[bucket].filter(x => x.id !== id);
+    normalizeRuleOrders();
     save();
     return true;
   },
 
   reorderRules(orderArray) {
     // orderArray: [{ id, sort_order }, ...]
-    for (const item of orderArray) {
-      const r = this.getRule(item.id);
-      if (r) r.sort_order = item.sort_order;
+    const ruleMap = new Map(this._allRules().map(rule => [rule.id, rule]));
+    for (let index = 0; index < orderArray.length; index += 1) {
+      const item = orderArray[index];
+      const r = ruleMap.get(item.id);
+      if (r) {
+        r.sort_order = index + 1;
+      }
     }
+    normalizeRuleOrders();
     save();
   },
 
