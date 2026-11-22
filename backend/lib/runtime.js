@@ -29,7 +29,7 @@ function register(srv) {
  * - detached：脱离父进程，父进程退出后仍存活
  * - stdio 写入日志文件：不绑定终端，避免终端关闭导致子进程被回收
  */
-function spawnNewProcess() {
+function spawnNewProcess(port) {
   let stdio = ['ignore', 'ignore', 'ignore'];
   try {
     fs.mkdirSync(LOG_DIR, { recursive: true });
@@ -39,11 +39,19 @@ function spawnNewProcess() {
     console.warn('无法打开重启日志文件，改为静默模式:', err.message);
   }
 
+  const env = { ...process.env, CSM_RESPAWNED: '1' };
+  // 端口切换：必须覆盖继承来的 PORT，否则新进程仍会去监听旧端口
+  if (Number.isFinite(port)) {
+    env.PORT = String(port);
+    // 标记：这个 PORT 来自配置文件（非用户外部指定的启动参数）
+    env.CSM_PORT_FROM_CONFIG = '1';
+  }
+
   const child = spawn(process.execPath, [SERVER_ENTRY], {
     cwd: BACKEND_DIR,
     detached: true,
     stdio,
-    env: { ...process.env, CSM_RESPAWNED: '1' }
+    env
   });
   child.unref();
   return child.pid;
@@ -54,8 +62,10 @@ function spawnNewProcess() {
  * 策略：先让旧进程停止接收新连接（释放端口）→ 派生新进程 → 旧进程退出
  * 若新进程因端口占用失败，会由 /status 轮询发现并提示手动重启。
  * @param {number} delay 延迟毫秒，留给 HTTP 响应刷盘
+ * @param {{port?: number}} [options] port 指定新进程监听端口（用于初始化向导切换端口）
  */
-function restart(delay = 600) {
+function restart(delay = 600, options = {}) {
+  const port = Number.isFinite(options && options.port) ? options.port : null;
   return new Promise(resolve => {
     setTimeout(() => {
       let spawned = false;
@@ -64,8 +74,8 @@ function restart(delay = 600) {
         spawned = true;
         let pid = null;
         try {
-          pid = spawnNewProcess();
-          console.log(`🔄 已启动新进程（PID ${pid}），旧进程即将退出`);
+          pid = spawnNewProcess(port);
+          console.log(`🔄 已启动新进程（PID ${pid}${port ? `，端口 ${port}` : ''}），旧进程即将退出`);
         } catch (err) {
           console.error('🔄 重启失败，请手动重启服务:', err.message);
         }

@@ -1,6 +1,6 @@
 {
   "name": "class-points-backend",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "班级积分管理系统 - 后端服务",
   "main": "server.js",
   "scripts": {

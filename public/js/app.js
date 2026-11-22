@@ -277,18 +277,68 @@ const App = {
 
   // ==================== 规则 ====================
 
+  /** 规则类型（缺省/非法 → fixed） */
+  ruleType(rule) {
+    const t = rule && rule.type;
+    return ['fixed', 'custom-add', 'custom-minus', 'custom-both'].includes(t) ? t : 'fixed';
+  },
+
+  /** 规则是否为「加分侧」（决定颜色与分组） */
+  ruleIsPositive(rule) {
+    const t = this.ruleType(rule);
+    if (t === 'custom-minus') return false;
+    if (t === 'custom-add' || t === 'custom-both') return true;
+    return (Number(rule && rule.points) || 0) >= 0;
+  },
+
+  /** 自定义规则的推荐分数（默认 1,2,3,4） */
+  rulePresets(rule) {
+    const list = Array.isArray(rule && rule.presets) ? rule.presets : [];
+    const out = [];
+    for (const p of list) {
+      const n = Math.abs(parseInt(p, 10));
+      if (Number.isFinite(n) && n > 0 && !out.includes(n)) out.push(n);
+    }
+    out.sort((a, b) => a - b);
+    return out.length ? out.slice(0, 8) : [1, 2, 3, 4];
+  },
+
+  /** HTML 属性转义 */
+  escAttr(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  },
+
+  /** 单个规则选项的 HTML */
+  ruleOptionHtml(rule) {
+    const positive = this.ruleIsPositive(rule);
+    const type = this.ruleType(rule);
+    const isCustom = type !== 'fixed';
+    const value = isCustom
+      ? '<i class="fas fa-sliders-h"></i> 自定义'
+      : `${positive ? '+' : ''}${rule.points}`;
+    const pointsAttr = isCustom ? '' : ` data-points="${rule.points}"`;
+    return `<div class="rule-option ${positive ? 'positive' : 'negative'}${isCustom ? ' custom' : ''}" data-rule-id="${rule.id}" data-type="${type}"${pointsAttr} data-name="${this.escAttr(rule.name)}">
+      <span>${rule.name}</span><span class="rule-option-value">${value}</span></div>`;
+  },
+
   renderRules() {
     const el = document.getElementById('rulesList');
     if (!el) return;
     el.innerHTML = '';
-    this.rules.forEach((rule, i) => {
-      const positive = rule.points > 0;
+    this.rules.forEach((rule) => {
+      const positive = this.ruleIsPositive(rule);
+      const isCustom = this.ruleType(rule) !== 'fixed';
       const item = document.createElement('div');
       item.className = `rule-item ${positive ? 'positive' : 'negative'}`;
       item.dataset.id = rule.id;
+      const pointsHtml = isCustom
+        ? '<span class="rule-custom-badge"><i class="fas fa-sliders-h"></i> 自定义</span>'
+        : `${positive ? '+' : ''}${rule.points}`;
       item.innerHTML = `
         <div class="rule-text">${rule.name}</div>
-        <div class="rule-points ${positive ? 'positive' : 'negative'}">${positive ? '+' : ''}${rule.points}</div>`;
+        <div class="rule-points ${positive ? 'positive' : 'negative'}">${pointsHtml}</div>`;
       el.appendChild(item);
     });
   },
@@ -357,14 +407,12 @@ const App = {
     const selected = this.students.filter(s => this.multiSelectedIds.has(s.id));
     const names = selected.map(s => s.name).join(', ');
     const title = '批量加减分';
-    const posRules = this.rules.filter(r => r.points > 0);
-    const negRules = this.rules.filter(r => r.points < 0);
-    const mkRule = (r) => `<div class="rule-option ${r.points > 0 ? 'positive' : 'negative'}" data-points="${r.points}" data-name="${r.name}">
-      <span>${r.name}</span><span>${r.points > 0 ? '+' : ''}${r.points}</span></div>`;
+    const posRules = this.rules.filter(r => this.ruleIsPositive(r));
+    const negRules = this.rules.filter(r => !this.ruleIsPositive(r));
     let rulesHtml = '';
-    posRules.forEach(r => rulesHtml += mkRule(r));
+    posRules.forEach(r => rulesHtml += this.ruleOptionHtml(r));
     if (negRules.length) rulesHtml += '<div style="grid-column:1/-1;"><hr style="margin:10px 0;border-style:dashed;"></div>';
-    negRules.forEach(r => rulesHtml += mkRule(r));
+    negRules.forEach(r => rulesHtml += this.ruleOptionHtml(r));
     let html = `
       <h3>${title}</h3>
       <div class="multi-select-info"><p>操作对象 (${selected.length}人):</p><span>${names}</span></div>
@@ -379,34 +427,45 @@ const App = {
       </div>`;
     UI.openModal(html, title);
 
+    const applyBatch = async (pts, rsn) => {
+      await API.batchPoints([...App.multiSelectedIds], pts, rsn);
+      App.multiSelectedIds.clear();
+      App.cancelMultiSelectMode();
+      await App.loadStudents();
+      App.renderAll();
+      UI.closeModal();
+    };
+
     document.querySelectorAll('.rule-option').forEach(el => {
-      el.onclick = async () => {
-        const pts = parseInt(el.dataset.points);
+      el.onclick = () => {
         const rsn = el.dataset.name;
-        UI.confirm('确认操作', `确定为选中的 ${selected.length} 名学生 ${pts > 0 ? '加' : '减'} ${Math.abs(pts)} 分吗？`, async () => {
-          await API.batchPoints([...App.multiSelectedIds], pts, rsn);
-          App.multiSelectedIds.clear();
-          App.cancelMultiSelectMode();
-          await App.loadStudents();
-          App.renderAll();
-          UI.closeModal();
-        });
+        const rule = App.rules.find(r => String(r.id) === String(el.dataset.ruleId));
+        // 自定义类型 → 打开二级分数选择弹窗
+        if (el.dataset.type && el.dataset.type !== 'fixed' && rule) {
+          App.openCustomScorePicker({
+            rule,
+            back: () => App.showBatchPointsModal(),
+            onPick: (pts) => {
+              UI.confirm('确认操作', `确定为选中的 ${selected.length} 名学生 ${pts > 0 ? '加' : '减'} ${Math.abs(pts)} 分吗？`,
+                () => applyBatch(pts, rsn));
+            }
+          });
+          return;
+        }
+        const pts = parseInt(el.dataset.points, 10);
+        if (!Number.isFinite(pts)) return;
+        UI.confirm('确认操作', `确定为选中的 ${selected.length} 名学生 ${pts > 0 ? '加' : '减'} ${Math.abs(pts)} 分吗？`,
+          () => applyBatch(pts, rsn));
       };
     });
-    document.getElementById('applyCustomBtn').onclick = async () => {
+    document.getElementById('applyCustomBtn').onclick = () => {
       const ptsInput = document.getElementById('customPoints');
       const rsnInput = document.getElementById('customReason');
-      let pts = parseInt(ptsInput.value);
+      const pts = parseInt(ptsInput.value, 10);
       const rsn = rsnInput.value.trim() || '自定义';
       if (isNaN(pts)) { UI.alert('请输入有效的分数！'); return; }
-      UI.confirm('确认操作', `确定为选中的 ${selected.length} 名学生 ${pts > 0 ? '加' : '减'} ${Math.abs(pts)} 分吗？`, async () => {
-        await API.batchPoints([...App.multiSelectedIds], pts, rsn);
-        App.multiSelectedIds.clear();
-        App.cancelMultiSelectMode();
-        await App.loadStudents();
-        App.renderAll();
-        UI.closeModal();
-      });
+      UI.confirm('确认操作', `确定为选中的 ${selected.length} 名学生 ${pts > 0 ? '加' : '减'} ${Math.abs(pts)} 分吗？`,
+        () => applyBatch(pts, rsn));
     };
   },
 
@@ -415,50 +474,28 @@ const App = {
   showPointsModal(student, type = null) {
     if (!Auth.requireAuth()) return;
     let html, title;
-    const posRules = this.rules.filter(r => r.points > 0);
-    const negRules = this.rules.filter(r => r.points < 0);
+    const posRules = this.rules.filter(r => this.ruleIsPositive(r));
+    const negRules = this.rules.filter(r => !this.ruleIsPositive(r));
     let rulesHtml = '';
-    const mkRule = (r) => `<div class="rule-option ${r.points > 0 ? 'positive' : 'negative'}" data-points="${r.points}" data-name="${r.name}">
-      <span>${r.name}</span><span>${r.points > 0 ? '+' : ''}${r.points}</span></div>`;
 
     if (type === 'add') {
       title = `加分：${student.name}`;
-      posRules.forEach(r => rulesHtml += mkRule(r));
+      posRules.forEach(r => rulesHtml += this.ruleOptionHtml(r));
       html = `<h3>${title}</h3><div class="rules-options">${rulesHtml}</div>${App.customPointsHtml('add')}`;
     } else if (type === 'subtract') {
       title = `减分：${student.name}`;
-      negRules.forEach(r => rulesHtml += mkRule(r));
+      negRules.forEach(r => rulesHtml += this.ruleOptionHtml(r));
       html = `<h3>${title}</h3><div class="rules-options">${rulesHtml}</div>${App.customPointsHtml('subtract')}`;
     } else {
       title = `加减分：${student.name}`;
-      posRules.forEach(r => rulesHtml += mkRule(r));
+      posRules.forEach(r => rulesHtml += this.ruleOptionHtml(r));
       if (negRules.length) rulesHtml += '<div style="grid-column:1/-1;"><hr style="margin:10px 0;border-style:dashed;"></div>';
-      negRules.forEach(r => rulesHtml += mkRule(r));
+      negRules.forEach(r => rulesHtml += this.ruleOptionHtml(r));
       html = `<h3>${title}</h3><div class="rules-options">${rulesHtml}</div>${App.customPointsHtml()}`;
     }
     UI.openModal(html, title);
 
-    document.querySelectorAll('.rule-option').forEach(el => {
-      el.onclick = async () => {
-        const pts = parseInt(el.dataset.points);
-        const rsn = el.dataset.name;
-        try {
-          const result = await API.addPoints(student.id, pts, rsn);
-          App.students = App.students.map(s => s.id === student.id ? result : s);
-          UI.showPointAnimation(student.id, pts);
-          App.renderAll();
-          UI.closeModal();
-        } catch (err) { alert(err.message); }
-      };
-    });
-    document.getElementById('applyCustomBtn').onclick = async () => {
-      const ptsInput = document.getElementById('customPoints');
-      const rsnInput = document.getElementById('customReason');
-      let pts = parseInt(ptsInput.value);
-      const rsn = rsnInput.value.trim() || '自定义';
-      if (isNaN(pts)) return;
-      if (type === 'subtract' && pts > 0) pts = -pts;
-      if (type === 'add' && pts < 0) pts = Math.abs(pts);
+    const applyPoints = async (pts, rsn) => {
       try {
         const result = await API.addPoints(student.id, pts, rsn);
         App.students = App.students.map(s => s.id === student.id ? result : s);
@@ -467,6 +504,106 @@ const App = {
         UI.closeModal();
       } catch (err) { alert(err.message); }
     };
+
+    document.querySelectorAll('.rule-option').forEach(el => {
+      el.onclick = () => {
+        const rsn = el.dataset.name;
+        const rule = App.rules.find(r => String(r.id) === String(el.dataset.ruleId));
+        // 自定义类型 → 打开二级分数选择弹窗
+        if (el.dataset.type && el.dataset.type !== 'fixed' && rule) {
+          App.openCustomScorePicker({
+            rule,
+            back: () => App.showPointsModal(student, type),
+            onPick: (pts) => applyPoints(pts, rsn)
+          });
+          return;
+        }
+        const pts = parseInt(el.dataset.points, 10);
+        if (!Number.isFinite(pts)) return;
+        applyPoints(pts, rsn);
+      };
+    });
+    document.getElementById('applyCustomBtn').onclick = () => {
+      const ptsInput = document.getElementById('customPoints');
+      const rsnInput = document.getElementById('customReason');
+      let pts = parseInt(ptsInput.value, 10);
+      const rsn = rsnInput.value.trim() || '自定义';
+      if (isNaN(pts)) return;
+      if (type === 'subtract' && pts > 0) pts = -pts;
+      if (type === 'add' && pts < 0) pts = Math.abs(pts);
+      applyPoints(pts, rsn);
+    };
+  },
+
+  /**
+   * 二级弹窗：自定义分数选择
+   * @param {object} opts
+   *   rule    规则对象
+   *   onPick  选中分数后的回调 (points) => void
+   *   back    返回上一层的回调
+   */
+  openCustomScorePicker(opts) {
+    const { rule, onPick, back } = opts || {};
+    if (!rule) return;
+
+    const type = this.ruleType(rule);
+    const presets = this.rulePresets(rule);
+    const signs = type === 'custom-minus' ? [-1] : (type === 'custom-add' ? [1] : [1, -1]);
+    const prefix = type === 'custom-minus' ? '减分' : (type === 'custom-add' ? '加分' : '加减分');
+    const subtitle = type === 'custom-minus'
+      ? '选择要减的分数'
+      : (type === 'custom-add' ? '选择要加的分数' : '选择要加的分数（下方为减分）');
+    const title = `${prefix}：${rule.name}`;
+
+    let grid = '';
+    signs.forEach((sign, idx) => {
+      if (idx > 0) {
+        grid += '<div style="grid-column:1/-1;"><hr style="margin:10px 0;border-style:dashed;"></div>';
+      }
+      presets.forEach(p => {
+        const pts = p * sign;
+        grid += `<div class="rule-option ${pts > 0 ? 'positive' : 'negative'}" data-points="${pts}">
+          <span>${pts > 0 ? '+' : '-'}${p}</span></div>`;
+      });
+    });
+
+    const placeholder = type === 'custom-minus' ? '输入要减的分数' : '分数（正数加分，负数减分）';
+    const html = `
+      <h3>${title}</h3>
+      <p class="custom-picker-subtitle">${subtitle}</p>
+      <div class="rules-options custom-score-grid">${grid}</div>
+      <div class="custom-points mt-3">
+        <h4>自定义</h4>
+        <div class="form-group">
+          <input type="number" id="customPoints" class="form-control" placeholder="${placeholder}">
+          <button id="applyCustomBtn" class="btn btn-primary mt-2">应用</button>
+        </div>
+      </div>
+      <div class="custom-picker-actions">
+        <button id="backToRulesBtn" class="btn btn-white"><i class="fas fa-arrow-left"></i> 返回</button>
+      </div>`;
+
+    UI.openModal(html, title);
+
+    document.querySelectorAll('.rule-option').forEach(el => {
+      el.onclick = () => {
+        const pts = parseInt(el.dataset.points, 10);
+        if (!Number.isFinite(pts)) return;
+        if (typeof onPick === 'function') onPick(pts);
+      };
+    });
+
+    document.getElementById('applyCustomBtn').onclick = () => {
+      const input = document.getElementById('customPoints');
+      let pts = parseInt(input.value, 10);
+      if (!Number.isFinite(pts) || pts === 0) { UI.alert('请输入有效的分数！'); return; }
+      if (type === 'custom-minus') pts = -Math.abs(pts);
+      if (type === 'custom-add') pts = Math.abs(pts);
+      if (typeof onPick === 'function') onPick(pts);
+    };
+
+    const backBtn = document.getElementById('backToRulesBtn');
+    if (backBtn) backBtn.onclick = () => { if (typeof back === 'function') back(); };
   },
 
   customPointsHtml(type = 'combined') {

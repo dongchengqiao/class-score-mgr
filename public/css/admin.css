@@ -224,6 +224,13 @@
   gap: 8px;
 }
 
+.admin-port-hint {
+  margin: 0 0 4px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-light);
+}
+
 /* ======= 设置表格 ======= */
 .settings-table {
   width: 100%;

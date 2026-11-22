@@ -2,6 +2,10 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 
+// ⚠️ 必须最先加载：json-db 会自动创建 data/ 并写入默认数据，
+//    初始化状态的判断必须在它运行前完成快照。
+const setupState = require('./lib/setup-state');
+
 const studentsRouter = require('./routes/students');
 const groupsRouter = require('./routes/groups');
 const rulesRouter = require('./routes/rules');
@@ -11,11 +15,17 @@ const dataRouter = require('./routes/data');
 const morningReadingRouter = require('./routes/morning-reading');
 const adminRouter = require('./routes/admin');
 const updateRouter = require('./routes/update');
+const setupRouter = require('./routes/setup');
 const runtime = require('./lib/runtime');
 const { authenticate, requireAdmin } = require('./middleware/auth');
 
 const app = express();
-const PORT = process.env.PORT || 4000;
+// 端口优先级：环境变量 PORT > data/config.json 的 port > 默认 4000
+const PORT = setupState.readPort();
+
+// 需要初始化时重定向到向导页的页面
+const GUARDED_PAGES = ['/index.html', '/admin.html', '/login.html', '/zaodu.html', '/voice.html'];
+const SETUP_PAGE = '/setup.html';
 
 // ============================================================
 // 中间件
@@ -36,6 +46,26 @@ app.use((req, res, next) => {
 });
 
 // ============================================================
+// 初始化守卫
+// ============================================================
+
+// 未完成初始化时，所有业务页面重定向到 /setup.html
+// 必须放在 express.static 之前，否则已存在的静态文件会直接返回
+app.use((req, res, next) => {
+  if (!setupState.needsSetup()) return next();
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  const urlPath = req.path;
+  if (urlPath === SETUP_PAGE || urlPath.startsWith('/api/')) return next();
+  // 仅拦截页面请求：根路径、无扩展名路径、.html 页面
+  const isPage = urlPath === '/' || !path.extname(urlPath) || urlPath.endsWith('.html');
+  if (!isPage) return next();
+  if (urlPath === '/' || GUARDED_PAGES.includes(urlPath) || urlPath.endsWith('.html')) {
+    return res.redirect(302, SETUP_PAGE);
+  }
+  return next();
+});
+
+// ============================================================
 // 静态文件服务
 // ============================================================
 
@@ -48,6 +78,8 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // 公开路由（无需 Token）
 app.use('/api/auth', authRouter);
+// 初始化向导（公开）
+app.use('/api/setup', setupRouter);
 
 // 健康检查
 app.get('/api/health', (req, res) => {

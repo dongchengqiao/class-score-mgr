@@ -1,6 +1,6 @@
 {
   "name": "class-points-management",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "班级积分管理系统",
   "scripts": {
     "install:all": "cd backend && npm install",

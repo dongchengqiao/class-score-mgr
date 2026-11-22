@@ -151,8 +151,19 @@ const API = {
     return this.request('GET', '/api/rules');
   },
 
-  addRule(name, points) {
-    return this.request('POST', '/api/rules', { name, points });
+  /**
+   * 添加规则
+   * @param {string} name 规则名称
+   * @param {number} points 固定分值（type 为 fixed 时生效）
+   * @param {object} [options] { type, presets }
+   */
+  addRule(name, points, options) {
+    const payload = { name, points };
+    if (options && typeof options === 'object') {
+      if (options.type) payload.type = options.type;
+      if (options.presets !== undefined) payload.presets = options.presets;
+    }
+    return this.request('POST', '/api/rules', payload);
   },
 
   updateRule(id, data) {
@@ -293,6 +304,18 @@ const API = {
   /** 手动重启后端服务 */
   restartServer() {
     return this.request('POST', '/api/update/restart');
+  },
+
+  // ==================== 服务端口 ====================
+
+  /** 读取当前服务端口 */
+  getServerPort() {
+    return this.request('GET', '/api/admin/port');
+  },
+
+  /** 修改服务端口（端口变化时后端会自动重启） */
+  setServerPort(port) {
+    return this.request('PUT', '/api/admin/port', { port });
   },
 
   // ==================== 早读加分 ====================

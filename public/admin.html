@@ -269,6 +269,21 @@
         <h2 class="section-title"><i class="fas fa-cog"></i> 系统设置</h2>
         <div class="admin-card">
           <div class="admin-card-body">
+            <div class="admin-form-row" style="margin-bottom:12px;">
+              <div class="admin-form-group" style="flex:0 0 180px;">
+                <label>服务端口</label>
+                <input type="number" id="adminPort" class="form-control" min="1024" max="65535" placeholder="默认 4000">
+              </div>
+              <div class="admin-form-actions">
+                <button id="adminSavePortBtn" class="btn btn-primary"><i class="fas fa-save"></i> 保存端口</button>
+                <button id="adminResetPortBtn" class="btn btn-secondary"><i class="fas fa-rotate-left"></i> 恢复默认</button>
+              </div>
+            </div>
+            <p class="admin-port-hint" id="adminPortHint">
+              修改端口后服务会自动重启，当前页需要跳转到新端口。端口范围 1024 ~ 65535。
+            </p>
+            <div id="portStatus" class="admin-status" style="margin-top:12px;display:none;"></div>
+
             <div id="settingsList" style="margin-bottom:15px;">
               <p style="color:var(--text-light);">暂无自定义设置</p>
             </div>
@@ -298,8 +313,21 @@
                 <input type="text" id="adminRuleName" class="form-control" placeholder="如: 按时完成作业">
               </div>
               <div class="admin-form-group">
+                <label>规则类型</label>
+                <select id="adminRuleType" class="form-control">
+                  <option value="fixed">固定分值</option>
+                  <option value="custom-add">自定义加分</option>
+                  <option value="custom-minus">自定义减分</option>
+                  <option value="custom-both">自定义加减分</option>
+                </select>
+              </div>
+              <div class="admin-form-group" id="adminRulePointsGroup">
                 <label>分值（正数加分，负数减分）</label>
                 <input type="number" id="adminRulePoints" class="form-control" placeholder="如: 2">
+              </div>
+              <div class="admin-form-group" id="adminRulePresetsGroup" style="display:none;">
+                <label>推荐分数（逗号分隔，留空则用 1,2,3,4）</label>
+                <input type="text" id="adminRulePresets" class="form-control" placeholder="如: 1,2,3,4">
               </div>
               <button id="adminAddRuleBtn" class="btn btn-primary"><i class="fas fa-plus"></i> 添加规则</button>
             </div>

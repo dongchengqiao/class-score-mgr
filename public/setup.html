@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>初始化 · 班级积分管理</title>
+  <link rel="stylesheet" href="vendor/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="vendor/fonts/fonts.css">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/setup.css">
+</head>
+<body class="setup-page theme-vibrant">
+
+  <div class="setup-shell">
+
+    <!-- ======= 标题 ======= -->
+    <div class="setup-header">
+      <div class="setup-logo"><i class="fas fa-graduation-cap"></i></div>
+      <h1>班级积分管理系统</h1>
+      <p>欢迎使用！只需几步即可完成初始化配置<br>所有步骤均可跳过，之后可在管理后台随时补充</p>
+    </div>
+
+    <!-- ======= 步骤指示器 ======= -->
+    <div class="setup-steps" id="setupSteps">
+      <div class="setup-step active" data-step="1">
+        <div class="step-dot">1</div>
+        <div class="step-label">班级与端口</div>
+      </div>
+      <div class="setup-step" data-step="2">
+        <div class="step-dot">2</div>
+        <div class="step-label">学生</div>
+      </div>
+      <div class="setup-step" data-step="3">
+        <div class="step-dot">3</div>
+        <div class="step-label">小组</div>
+      </div>
+      <div class="setup-step" data-step="4">
+        <div class="step-dot">4</div>
+        <div class="step-label">积分规则</div>
+      </div>
+      <div class="setup-step" data-step="5">
+        <div class="step-dot">5</div>
+        <div class="step-label">商品</div>
+      </div>
+    </div>
+
+    <!-- ======= 卡片 ======= -->
+    <div class="setup-card">
+
+      <!-- ---------- 步骤 1：班级与端口 ---------- -->
+      <div class="setup-panel active" data-panel="1">
+        <h2><i class="fas fa-sliders-h"></i> 班级与端口</h2>
+        <p class="panel-desc">
+          设置班级名称与服务端口。端口决定访问地址，例如端口 <code>4000</code> 对应
+          <code>http://localhost:4000</code>。
+        </p>
+
+        <div class="setup-field">
+          <label for="setupClassName">班级名称</label>
+          <input type="text" id="setupClassName" placeholder="如：2025级3班">
+          <div class="hint">会显示在页面标题与水印上，可稍后修改。</div>
+        </div>
+
+        <div class="setup-field">
+          <label for="setupPort">服务端口</label>
+          <div class="port-row">
+            <input type="number" id="setupPort" min="1024" max="65535" step="1" placeholder="4000">
+            <button type="button" class="btn-ghost" id="setupResetPort">恢复默认 4000</button>
+          </div>
+          <div class="hint">
+            默认 <strong>4000</strong>，可选范围 1024 ~ 65535。若端口被占用，请更换其他端口。
+          </div>
+        </div>
+
+        <div class="setup-error" id="setupError1"></div>
+
+        <div class="setup-footer">
+          <span></span>
+          <div class="footer-right">
+            <button type="button" class="btn-setup" data-next="2">下一步 <i class="fas fa-arrow-right"></i></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ---------- 步骤 2：学生 ---------- -->
+      <div class="setup-panel" data-panel="2">
+        <h2><i class="fas fa-user-graduate"></i> 添加学生</h2>
+        <p class="panel-desc">
+          可直接从 Excel 复制学生名单粘贴到下方文本框，支持 <strong>姓名 + 性别</strong> 两列。
+          若只有姓名，性别默认为男生。
+        </p>
+
+        <div class="skip-tip">
+          <i class="fas fa-lightbulb"></i>
+          <span>Excel 中选中「姓名」「性别」两列 → 复制 → 粘贴到这里即可。性别支持
+            <strong>男/女、male/female</strong>。</span>
+        </div>
+
+        <div class="setup-field">
+          <label for="setupStudents">学生名单</label>
+          <textarea id="setupStudents" placeholder="张三	男
+李四	女
+王五	男
+赵六	女"></textarea>
+          <div class="hint">
+            每行一个学生，姓名与性别用 <strong>Tab</strong> 或 <strong>逗号</strong> 分隔；表头行会自动忽略。
+          </div>
+        </div>
+
+        <div class="paste-preview" id="studentPreview" style="display:none;"></div>
+        <div class="setup-error" id="setupError2"></div>
+
+        <div class="setup-footer">
+          <button type="button" class="btn-ghost" data-prev="1"><i class="fas fa-arrow-left"></i> 上一步</button>
+          <div class="footer-right">
+            <button type="button" class="btn-skip" data-next="3">稍后导入</button>
+            <button type="button" class="btn-setup" data-next="3">下一步 <i class="fas fa-arrow-right"></i></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ---------- 步骤 3：小组 ---------- -->
+      <div class="setup-panel" data-panel="3">
+        <h2><i class="fas fa-users"></i> 创建小组</h2>
+        <p class="panel-desc">每行一个小组名称，用于小组积分排行榜。</p>
+
+        <div class="setup-field">
+          <label for="setupGroups">小组名单</label>
+          <textarea id="setupGroups" placeholder="第一组
+第二组
+第三组
+第四组"></textarea>
+          <div class="hint">每行一个名称，空行会被忽略。</div>
+        </div>
+
+        <div class="paste-preview" id="groupPreview" style="display:none;"></div>
+        <div class="setup-error" id="setupError3"></div>
+
+        <div class="setup-footer">
+          <button type="button" class="btn-ghost" data-prev="2"><i class="fas fa-arrow-left"></i> 上一步</button>
+          <div class="footer-right">
+            <button type="button" class="btn-skip" data-next="4">稍后创建</button>
+            <button type="button" class="btn-setup" data-next="4">下一步 <i class="fas fa-arrow-right"></i></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ---------- 步骤 4：积分规则 ---------- -->
+      <div class="setup-panel" data-panel="4">
+        <h2><i class="fas fa-list-check"></i> 积分规则</h2>
+        <p class="panel-desc">
+          每行一条规则，格式为 <strong>规则名称,分值</strong>。正数表示加分，负数表示减分。
+        </p>
+
+        <div class="skip-tip">
+          <i class="fas fa-circle-info"></i>
+          <span>留空将使用系统内置的 10 条常用规则，之后可在管理后台自由增删。</span>
+        </div>
+
+        <div class="setup-field">
+          <label for="setupRules">规则列表</label>
+          <textarea id="setupRules" placeholder="回答问题正确,1
+认真完成作业,2
+帮助同学,3
+课堂表现优秀,5
+扰乱课堂,-2
+作业不完整,-1"></textarea>
+          <div class="hint">名称与分值用逗号分隔；未写分值时默认为 <strong>+1</strong>。</div>
+        </div>
+
+        <div class="paste-preview" id="rulePreview" style="display:none;"></div>
+        <div class="setup-error" id="setupError4"></div>
+
+        <div class="setup-footer">
+          <button type="button" class="btn-ghost" data-prev="3"><i class="fas fa-arrow-left"></i> 上一步</button>
+          <div class="footer-right">
+            <button type="button" class="btn-skip" data-next="5">稍后添加</button>
+            <button type="button" class="btn-setup" data-next="5">下一步 <i class="fas fa-arrow-right"></i></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ---------- 步骤 5：商品 ---------- -->
+      <div class="setup-panel" data-panel="5">
+        <h2><i class="fas fa-gift"></i> 商品兑换</h2>
+        <p class="panel-desc">
+          学生可用积分兑换商品。每行一条，格式为 <strong>商品名称,所需积分,库存</strong>。
+        </p>
+
+        <div class="setup-field">
+          <label for="setupShop">商品列表</label>
+          <textarea id="setupShop" placeholder="铅笔,10,50
+橡皮,5,50
+笔记本,20,30"></textarea>
+          <div class="hint">库存留空默认为 <strong>0</strong>，可稍后补充。</div>
+        </div>
+
+        <div class="paste-preview" id="shopPreview" style="display:none;"></div>
+        <div class="setup-error" id="setupError5"></div>
+
+        <div class="setup-footer">
+          <button type="button" class="btn-ghost" data-prev="4"><i class="fas fa-arrow-left"></i> 上一步</button>
+          <div class="footer-right">
+            <button type="button" class="btn-skip" id="setupSkipAll">稍后添加，直接完成</button>
+            <button type="button" class="btn-setup" id="setupFinishBtn">
+              <i class="fas fa-check"></i> 完成初始化
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ---------- 完成 ---------- -->
+      <div class="setup-panel" data-panel="done">
+        <div class="setup-done">
+          <div class="done-icon"><i class="fas fa-check"></i></div>
+          <h2>初始化完成</h2>
+          <p id="setupDoneDesc">配置已保存，正在为你准备系统…</p>
+
+          <div class="summary-grid" id="setupSummary"></div>
+
+          <div class="restart-note" id="setupRestartNote">
+            <span class="spinner"></span>
+            <span id="setupRestartText">正在重启服务…</span>
+          </div>
+
+          <button type="button" class="btn-setup" id="setupGoHome" disabled>
+            <i class="fas fa-arrow-right"></i> 进入系统
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="js/setup.js"></script>
+</body>
+</html>

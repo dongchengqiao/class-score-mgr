@@ -1,6 +1,25 @@
 const express = require('express');
 const router = express.Router();
 const DB = require('../json-db');
+const setupState = require('../lib/setup-state');
+const runtime = require('../lib/runtime');
+
+const MIN_PORT = 1024;
+const MAX_PORT = 65535;
+
+/** 校验端口（非法返回 null） */
+function validatePort(value) {
+  const n = parseInt(value, 10);
+  if (!Number.isFinite(n) || n < MIN_PORT || n > MAX_PORT) return null;
+  return n;
+}
+
+/** 读取环境变量 PORT（未设置或被配置覆盖时返回 null） */
+function envPort() {
+  if (process.env.CSM_PORT_FROM_CONFIG === '1') return null;
+  const n = parseInt(process.env.PORT, 10);
+  return Number.isFinite(n) && n > 0 && n < 65536 ? n : null;
+}
 
 // ==================== GET ====================
 
@@ -41,8 +60,8 @@ router.get('/stats', (req, res) => {
       groups: { total: groups.length },
       rules: {
         total: rules.length,
-        positive: rules.filter(r => r.points > 0).length,
-        negative: rules.filter(r => r.points < 0).length
+        positive: rules.filter(r => (r.type === 'fixed' || !r.type) ? r.points > 0 : r.type !== 'custom-minus').length,
+        negative: rules.filter(r => (r.type === 'fixed' || !r.type) ? r.points < 0 : r.type === 'custom-minus').length
       },
       shop: { total: shop.length },
       totalPoints,
@@ -63,6 +82,21 @@ router.get('/settings', (req, res) => {
   try {
     const settings = DB.getAllSettings();
     res.json(settings);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/** 获取当前服务端口 */
+router.get('/port', (req, res) => {
+  try {
+    const env = envPort();
+    res.json({
+      port: setupState.readPort(),
+      defaultPort: setupState.DEFAULT_PORT,
+      envLocked: env !== null,
+      envPort: env
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -134,6 +168,36 @@ router.put('/settings/:key', (req, res) => {
     }
     DB.setSetting(key, value);
     res.json({ success: true, key, value });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/** 修改服务端口（写入配置，端口变化时自动重启服务） */
+router.put('/port', (req, res) => {
+  try {
+    const port = validatePort((req.body || {}).port);
+    if (port === null) {
+      return res.status(400).json({ error: `端口需在 ${MIN_PORT} ~ ${MAX_PORT} 之间` });
+    }
+
+    const previousPort = setupState.readPort();
+    DB.setSetting('port', port);
+
+    if (port === previousPort) {
+      return res.json({ success: true, port, previousPort, portChanged: false, restarted: false });
+    }
+
+    res.json({
+      success: true,
+      port,
+      previousPort,
+      portChanged: true,
+      restarted: true,
+      envLocked: envPort() !== null
+    });
+    // 响应已发出后再重启，避免连接被掐断；显式传入新端口覆盖继承的 PORT
+    runtime.restart(900, { port }).catch(err => console.error('切换端口后重启失败:', err));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

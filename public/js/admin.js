@@ -14,6 +14,9 @@ const Admin = {
     // 顶部导航折叠（通用组件）
     if (window.HeaderNav) HeaderNav.init();
 
+    // 切换端口后源（含端口）变化会丢失 localStorage，用 URL hash 传回 token
+    Admin.adoptTokenFromHash();
+
     // 检查当前 token 角色：admin 可直接进入，否则显示"登录管理员账号"
     const role = API.getRole();
     if (role === 'admin') {
@@ -60,6 +63,23 @@ const Admin = {
     Admin.bindEvents();
   },
 
+  /**
+   * 从 URL hash 中接收 token（用于跨端口跳转）
+   * 形如 #token=xxx；读取后立即从地址栏抹掉，避免被分享或截图泄漏
+   */
+  adoptTokenFromHash() {
+    const raw = String(location.hash || '').replace(/^#/, '');
+    if (!raw) return;
+    const matched = /(?:^|&)token=([^&]+)/.exec(raw);
+    if (!matched) return;
+    const token = decodeURIComponent(matched[1]);
+    if (token && !API.getToken()) API.setToken(token);
+    const rest = raw.replace(/(?:^|&)token=[^&]+/, '').replace(/^&/, '');
+    try {
+      history.replaceState(null, '', location.pathname + location.search + (rest ? '#' + rest : ''));
+    } catch { /* 忽略 */ }
+  },
+
   bindEvents() {
     // 解锁按钮
     document.getElementById('adminUnlockBtn')?.addEventListener('click', () => Admin.handleUnlock());
@@ -92,6 +112,18 @@ const Admin = {
     // 设置管理
     document.getElementById('addSettingBtn').addEventListener('click', () => Admin.handleAddSetting());
 
+    // 服务端口
+    const savePortBtn = document.getElementById('adminSavePortBtn');
+    if (savePortBtn) savePortBtn.addEventListener('click', () => Admin.handleSavePort());
+    const resetPortBtn = document.getElementById('adminResetPortBtn');
+    if (resetPortBtn) resetPortBtn.addEventListener('click', () => Admin.handleResetPort());
+    const portInput = document.getElementById('adminPort');
+    if (portInput) {
+      portInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') Admin.handleSavePort();
+      });
+    }
+
     // 班级信息
     document.getElementById('adminSaveClassInfoBtn').addEventListener('click', () => Admin.handleSaveClassInfo());
     document.getElementById('adminClassName').addEventListener('keydown', e => {
@@ -112,6 +144,16 @@ const Admin = {
     document.getElementById('adminRulePoints').addEventListener('keydown', e => {
       if (e.key === 'Enter') Admin.handleAddRule();
     });
+    const ruleTypeEl = document.getElementById('adminRuleType');
+    if (ruleTypeEl) {
+      ruleTypeEl.addEventListener('change', () => Admin.toggleRuleTypeFields(ruleTypeEl.value));
+    }
+    const rulePresetsEl = document.getElementById('adminRulePresets');
+    if (rulePresetsEl) {
+      rulePresetsEl.addEventListener('keydown', e => {
+        if (e.key === 'Enter') Admin.handleAddRule();
+      });
+    }
 
     // 学生管理
     document.getElementById('adminAddStudentBtn').addEventListener('click', () => Admin.handleAddStudent());
@@ -235,7 +277,8 @@ const Admin = {
         Admin.loadStudents(),
         Admin.loadGroups(),
         Admin.loadClassInfo(),
-        Admin.loadLocalVersion()
+        Admin.loadLocalVersion(),
+        Admin.loadServerPort()
       ]);
       Admin.renderRules();
       Admin.renderShop();
@@ -620,15 +663,21 @@ const Admin = {
     if (!el) return;
     el.innerHTML = '';
     Admin.rules.forEach(rule => {
-      const positive = rule.points > 0;
+      const type = Admin.ruleType(rule);
+      const isCustom = type !== 'fixed';
+      const positive = Admin.ruleIsPositive(rule);
       const item = document.createElement('div');
       item.className = `rule-item ${positive ? 'positive' : 'negative'}`;
       item.dataset.id = rule.id;
       item.draggable = true;
+      const typeLabel = Admin.ruleTypeLabel(type);
+      const valueHtml = isCustom
+        ? `<span class="rule-custom-badge"><i class="fas fa-sliders-h"></i> ${typeLabel}</span>`
+        : `${positive ? '+' : ''}${rule.points}`;
       item.innerHTML = `
         <span class="rule-drag-handle"><i class="fas fa-grip-vertical"></i></span>
-        <div class="rule-text">${rule.name}</div>
-        <div class="rule-points ${positive ? 'positive' : 'negative'}">${positive ? '+' : ''}${rule.points}</div>
+        <div class="rule-text">${rule.name}${isCustom ? `<span class="rule-presets-hint">推荐: ${Admin.rulePresets(rule).join(', ')}</span>` : ''}</div>
+        <div class="rule-points ${positive ? 'positive' : 'negative'}">${valueHtml}</div>
         <div class="rule-actions">
           <button class="btn btn-icon btn-secondary edit-rule-btn" data-id="${rule.id}" title="编辑规则"><i class="fas fa-edit"></i></button>
           <button class="btn btn-icon btn-danger delete-rule-btn" data-id="${rule.id}" title="删除规则"><i class="fas fa-trash"></i></button>
@@ -651,14 +700,84 @@ const Admin = {
     });
   },
 
+  /** 规则类型（缺省/非法 → fixed） */
+  ruleType(rule) {
+    const t = rule && rule.type;
+    return ['fixed', 'custom-add', 'custom-minus', 'custom-both'].includes(t) ? t : 'fixed';
+  },
+
+  ruleTypeLabel(type) {
+    return ({
+      'fixed': '固定分值',
+      'custom-add': '自定义加分',
+      'custom-minus': '自定义减分',
+      'custom-both': '自定义加减分'
+    })[type] || '固定分值';
+  },
+
+  ruleIsPositive(rule) {
+    const t = Admin.ruleType(rule);
+    if (t === 'custom-minus') return false;
+    if (t === 'custom-add' || t === 'custom-both') return true;
+    return (Number(rule && rule.points) || 0) >= 0;
+  },
+
+  rulePresets(rule) {
+    const list = Array.isArray(rule && rule.presets) ? rule.presets : [];
+    const out = [];
+    for (const p of list) {
+      const n = Math.abs(parseInt(p, 10));
+      if (Number.isFinite(n) && n > 0 && !out.includes(n)) out.push(n);
+    }
+    out.sort((a, b) => a - b);
+    return out.length ? out.slice(0, 8) : [1, 2, 3, 4];
+  },
+
+  /** 解析推荐分数字符串（逗号/空格分隔） */
+  parsePresets(value) {
+    const raw = String(value || '').split(/[,，\s]+/).filter(Boolean);
+    const out = [];
+    for (const item of raw) {
+      const n = Math.abs(parseInt(item, 10));
+      if (Number.isFinite(n) && n > 0 && !out.includes(n)) out.push(n);
+    }
+    out.sort((a, b) => a - b);
+    return out.slice(0, 8);
+  },
+
+  /** 切换「分值 / 推荐分数」输入组的显隐 */
+  toggleRuleTypeFields(type) {
+    const isFixed = (type || 'fixed') === 'fixed';
+    const pointsGroup = document.getElementById('adminRulePointsGroup');
+    const presetsGroup = document.getElementById('adminRulePresetsGroup');
+    if (pointsGroup) pointsGroup.style.display = isFixed ? '' : 'none';
+    if (presetsGroup) presetsGroup.style.display = isFixed ? 'none' : '';
+  },
+
   async handleAddRule() {
     const name = document.getElementById('adminRuleName').value.trim();
-    const points = parseInt(document.getElementById('adminRulePoints').value);
-    if (!name || isNaN(points)) { UI.alert('请填写规则名称和分值'); return; }
+    const typeEl = document.getElementById('adminRuleType');
+    const type = typeEl ? typeEl.value : 'fixed';
+    if (!name) { UI.alert('请填写规则名称'); return; }
+
+    let points = 0;
+    let presets;
+    if (type === 'fixed') {
+      points = parseInt(document.getElementById('adminRulePoints').value, 10);
+      if (isNaN(points)) { UI.alert('请填写有效分值'); return; }
+    } else {
+      const presetsEl = document.getElementById('adminRulePresets');
+      presets = Admin.parsePresets(presetsEl ? presetsEl.value : '');
+      if (!presets.length) { UI.alert('请填写至少一个推荐分数'); return; }
+    }
+
     try {
-      await API.addRule(name, points);
+      await API.addRule(name, points, { type, presets });
       document.getElementById('adminRuleName').value = '';
-      document.getElementById('adminRulePoints').value = '';
+      const pointsEl = document.getElementById('adminRulePoints');
+      if (pointsEl) pointsEl.value = '';
+      const presetsEl = document.getElementById('adminRulePresets');
+      if (presetsEl) presetsEl.value = '';
       await Admin.loadRules();
       Admin.renderRules();
     } catch (err) {
@@ -669,33 +788,59 @@ const Admin = {
   showEditRuleModal(ruleId) {
     const rule = Admin.rules.find(r => r.id === ruleId);
     if (!rule) return;
+    const type = Admin.ruleType(rule);
+    const isFixed = type === 'fixed';
+    const typeOptions = ['fixed', 'custom-add', 'custom-minus', 'custom-both']
+      .map(t => `<option value="${t}"${t === type ? ' selected' : ''}>${Admin.ruleTypeLabel(t)}</option>`)
+      .join('');
     const html = `<h3>编辑规则</h3>
-      <div class="form-group"><label class="form-label">规则名称:</label><input type="text" id="editRuleName" class="form-control" value="${rule.name}"></div>
-      <div class="form-group"><label class="form-label">分值:</label><input type="number" id="editRulePoints" class="form-control" value="${rule.points}"></div>
+      <div class="form-group"><label class="form-label">规则名称:</label><input type="text" id="editRuleName" class="form-control" value="${Admin.escapeHtml ? Admin.escapeHtml(rule.name) : rule.name}"></div>
+      <div class="form-group"><label class="form-label">规则类型:</label><select id="editRuleType" class="form-control">${typeOptions}</select></div>
+      <div class="form-group" id="editRulePointsGroup" style="${isFixed ? '' : 'display:none;'}"><label class="form-label">分值（正数加分，负数减分）:</label><input type="number" id="editRulePoints" class="form-control" value="${rule.points}"></div>
+      <div class="form-group" id="editRulePresetsGroup" style="${isFixed ? 'display:none;' : ''}"><label class="form-label">推荐分数（逗号分隔）:</label><input type="text" id="editRulePresets" class="form-control" value="${Admin.rulePresets(rule).join(',')}"></div>
       <div class="modal-footer"><button id="saveRuleChanges" class="btn btn-primary">保存</button></div>`;
-    // 使用全局 UI 的弹窗
+
     if (typeof UI !== 'undefined' && UI.openModal) {
-      UI.openModal(html);
+      UI.openModal(html, '编辑规则');
     } else {
-      // Fallback: 用简单确认
       const newName = prompt('规则名称:', rule.name);
       if (!newName) return;
-      const newPoints = parseInt(prompt('分值:', rule.points));
+      const newPoints = parseInt(prompt('分值:', rule.points), 10);
       if (isNaN(newPoints)) return;
-      Admin.saveEditRule(ruleId, newName, newPoints);
+      Admin.saveEditRule(ruleId, newName, newPoints, 'fixed', undefined);
       return;
     }
+
+    const typeEl = document.getElementById('editRuleType');
+    typeEl.onchange = () => {
+      const fixed = typeEl.value === 'fixed';
+      document.getElementById('editRulePointsGroup').style.display = fixed ? '' : 'none';
+      document.getElementById('editRulePresetsGroup').style.display = fixed ? 'none' : '';
+    };
+
     document.getElementById('saveRuleChanges').onclick = () => {
       const name = document.getElementById('editRuleName').value.trim();
-      const points = parseInt(document.getElementById('editRulePoints').value);
-      if (!name || isNaN(points)) { UI.alert('请输入有效的信息！'); return; }
-      Admin.saveEditRule(ruleId, name, points);
+      const newType = typeEl.value;
+      if (!name) { UI.alert('请输入规则名称！'); return; }
+      let points = 0;
+      let presets;
+      if (newType === 'fixed') {
+        points = parseInt(document.getElementById('editRulePoints').value, 10);
+        if (isNaN(points)) { UI.alert('请输入有效分值！'); return; }
+      } else {
+        presets = Admin.parsePresets(document.getElementById('editRulePresets').value);
+        if (!presets.length) { UI.alert('请填写至少一个推荐分数！'); return; }
+      }
+      Admin.saveEditRule(ruleId, name, points, newType, presets);
     };
   },
 
-  async saveEditRule(ruleId, name, points) {
+  async saveEditRule(ruleId, name, points, type, presets) {
     try {
-      await API.updateRule(ruleId, { name, points });
+      const payload = { name, type: type || 'fixed' };
+      if (payload.type === 'fixed') payload.points = points;
+      else payload.presets = presets;
+      await API.updateRule(ruleId, payload);
       await Admin.loadRules();
       Admin.renderRules();
       if (typeof UI !== 'undefined' && UI.closeModal) UI.closeModal();
@@ -985,6 +1130,125 @@ const Admin = {
       }
       return closest;
     }, { offset: Number.NEGATIVE_INFINITY }).element;
+  },
+
+  // ==================== 服务端口 ====================
+
+  /** 当前服务端口（未确认前不变） */
+  serverPort: null,
+
+  /** 读取并回填当前服务端口 */
+  async loadServerPort() {
+    const input = document.getElementById('adminPort');
+    const hint = document.getElementById('adminPortHint');
+    try {
+      const info = await API.getServerPort();
+      Admin.serverPort = info.port;
+      if (input) {
+        input.value = info.port;
+        input.placeholder = `默认 ${info.defaultPort}`;
+      }
+      if (hint) {
+        hint.innerHTML = info.envLocked
+          ? `<i class="fas fa-circle-info"></i> 当前端口 <strong>${info.port}</strong> 来自启动参数 <code>PORT=${info.envPort}</code>。在此保存会写入配置文件并以新端口重启，之后以配置文件为准。`
+          : `<i class="fas fa-circle-info"></i> 当前端口 <strong>${info.port}</strong>。修改后服务会自动重启，当前页需要跳转到新端口。端口范围 1024 ~ 65535。`;
+      }
+    } catch (err) {
+      console.error('加载服务端口失败:', err);
+      if (hint) hint.textContent = '无法读取当前端口，请检查服务状态。';
+    }
+  },
+
+  /** 端口提示信息 */
+  setPortStatus(msg, type) {
+    const el = document.getElementById('portStatus');
+    if (!el) return;
+    if (!msg) { el.style.display = 'none'; el.innerHTML = ''; return; }
+    const icon = type === 'error' ? 'fa-exclamation-circle'
+      : type === 'loading' ? 'fa-circle-notch fa-spin'
+      : 'fa-check-circle';
+    const color = type === 'error' ? 'var(--primary)' : type === 'loading' ? 'var(--text-light)' : 'var(--accent2)';
+    el.style.display = 'flex';
+    el.innerHTML = `<i class="fas ${icon}" style="color:${color};"></i> <span>${Admin.escapeHtml(msg)}</span>`;
+  },
+
+  /** 保存端口（端口变化时后端自动重启，前端轮询新端口） */
+  async handleSavePort() {
+    const input = document.getElementById('adminPort');
+    const btn = document.getElementById('adminSavePortBtn');
+    if (!input) return;
+
+    const raw = String(input.value || '').trim();
+    const port = parseInt(raw, 10);
+    if (!raw || !Number.isFinite(port) || port < 1024 || port > 65535) {
+      Admin.setPortStatus('端口需在 1024 ~ 65535 之间', 'error');
+      return;
+    }
+    if (port === Admin.serverPort) {
+      Admin.setPortStatus('端口未变化，无需保存', 'ok');
+      setTimeout(() => Admin.setPortStatus(''), 3000);
+      return;
+    }
+
+    UI.confirm('修改服务端口', `确定将服务端口从 ${Admin.serverPort} 改为 ${port} 吗？服务会立即重启，当前页面将跳转到新端口。`, async () => {
+      if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> 保存中…'; }
+      Admin.setPortStatus('正在保存端口…', 'loading');
+      try {
+        const res = await API.setServerPort(port);
+        Admin.serverPort = res.port;
+        if (!res.portChanged) {
+          Admin.setPortStatus('端口未变化', 'ok');
+          if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> 保存端口'; }
+          return;
+        }
+        Admin.setPortStatus(`端口已改为 ${res.port}，服务正在重启…`, 'loading');
+        await Admin.waitForPortChange(res.port);
+      } catch (err) {
+        Admin.setPortStatus('保存失败: ' + (err.message || err), 'error');
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> 保存端口'; }
+      }
+    });
+  },
+
+  /** 恢复默认端口 4000 */
+  async handleResetPort() {
+    const input = document.getElementById('adminPort');
+    if (!input) return;
+    input.value = '4000';
+    Admin.setPortStatus('已填入默认端口 4000，点击「保存端口」生效', 'ok');
+    setTimeout(() => Admin.setPortStatus(''), 3000);
+  },
+
+  /** 轮询等待服务在新端口上线，然后自动跳转 */
+  async waitForPortChange(port) {
+    const targetPort = port;
+    const origin = `${window.location.protocol}//${window.location.hostname}:${targetPort}`;
+    const start = Date.now();
+    const maxWait = 60000;
+
+    while (Date.now() - start < maxWait) {
+      await new Promise(r => setTimeout(r, 1200));
+      try {
+        const res = await fetch(`${origin}/api/health?_t=${Date.now()}`, { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (data && data.status === 'ok') {
+            Admin.setPortStatus(`服务已在端口 ${targetPort} 启动，即将跳转…`, 'ok');
+            await new Promise(r => setTimeout(r, 900));
+            // 端口变了 → 源变了，localStorage 里的 token 会丢，用 hash 带过去
+            const token = API.getToken();
+            window.location.href = `${origin}/admin.html` + (token ? `#token=${encodeURIComponent(token)}` : '');
+            return;
+          }
+        }
+      } catch {
+        Admin.setPortStatus(`正在重启服务（已等待 ${Math.round((Date.now() - start) / 1000)} 秒）…`, 'loading');
+      }
+    }
+
+    Admin.setPortStatus(`未能确认服务已在端口 ${targetPort} 启动，请手动访问 ${origin}/admin.html，或在终端重新启动服务。`, 'error');
+    const btn = document.getElementById('adminSavePortBtn');
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> 保存端口'; }
   },
 
   // ==================== 系统信息 ====================

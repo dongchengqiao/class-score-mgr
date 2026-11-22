@@ -200,14 +200,52 @@ if (data.rules.add.length === 0 && data.rules.minus.length === 0) {
   for (const [name, points, order] of defaultRules) {
     const id = nextSeq('rules');
     const target = points >= 0 ? 'add' : 'minus';
-    data.rules[target].push({ id, name, points, sort_order: order, created_at: nowISO() });
+    data.rules[target].push({ id, name, type: 'fixed', points, sort_order: order, created_at: nowISO() });
   }
   save();
   console.log('✅ 已插入默认规则');
 }
 
+// ============================================================
+// 规则类型
+//   fixed        — 固定分值（原有行为，使用 points）
+//   custom-add   — 自定义加分（点击后弹出推荐分数选择）
+//   custom-minus — 自定义减分
+//   custom-both  — 自定义加减分
+// presets 统一存储为正数绝对值，减分类在使用时取负
+// ============================================================
+const RULE_TYPES = ['fixed', 'custom-add', 'custom-minus', 'custom-both'];
+const DEFAULT_PRESETS = [1, 2, 3, 4];
+
+/** 归一化规则类型（缺省或非法 → fixed） */
+function ruleTypeOf(rule) {
+  const t = rule && rule.type;
+  return RULE_TYPES.includes(t) ? t : 'fixed';
+}
+
+/** 归一化推荐分数：去重、取绝对值、升序、限制 1~8 个 */
+function normalizePresets(presets) {
+  const list = Array.isArray(presets) ? presets : DEFAULT_PRESETS;
+  const out = [];
+  for (const p of list) {
+    const n = Math.abs(parseInt(p, 10));
+    if (Number.isFinite(n) && n > 0 && !out.includes(n)) out.push(n);
+  }
+  out.sort((a, b) => a - b);
+  return out.length ? out.slice(0, 8) : [...DEFAULT_PRESETS];
+}
+
+/** 根据规则类型/分值判断所属数组（add / minus） */
+function ruleBucketOf(rule) {
+  const t = ruleTypeOf(rule);
+  if (t === 'custom-minus') return 'minus';
+  if (t === 'custom-add' || t === 'custom-both') return 'add';
+  return (Number(rule && rule.points) || 0) >= 0 ? 'add' : 'minus';
+}
+
 function normalizeRuleOrders() {
-  if (!data || !data.rules) return;
+  if (!data || !data.rules) return false;
+  if (Array.isArray(data.rules)) return false;
   const allRules = [];
   for (const bucket of ['add', 'minus']) {
     if (Array.isArray(data.rules[bucket])) {
@@ -216,22 +254,32 @@ function normalizeRuleOrders() {
   }
   if (allRules.length === 0) {
     data.rules = { add: [], minus: [] };
-    return;
+    return false;
   }
+
+  const beforeJSON = JSON.stringify(data.rules);
 
   const normalized = [...allRules]
-    .sort((a, b) => Number(a.points < 0) - Number(b.points < 0) || (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) || (a.id || 0) - (b.id || 0))
-    .map((rule, index) => ({ ...rule, sort_order: index + 1 }));
+    .sort((a, b) => (ruleBucketOf(a) === 'minus' ? 1 : 0) - (ruleBucketOf(b) === 'minus' ? 1 : 0) || (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0) || (a.id || 0) - (b.id || 0))
+    .map((rule, index) => {
+      const type = ruleTypeOf(rule);
+      const out = { ...rule, type, sort_order: index + 1 };
+      if (type === 'fixed') {
+        out.points = Number(rule.points) || 0;
+        delete out.presets;
+      } else {
+        // 自定义类型不使用固定分值，统一存 0（分桶由 type 决定）
+        out.points = 0;
+        out.presets = normalizePresets(rule.presets);
+      }
+      return out;
+    });
 
-  const orderChanged = normalized.some((rule, index) =>
-    allRules[index]?.id !== rule.id || allRules[index]?.sort_order !== rule.sort_order
-  );
   data.rules = { add: [], minus: [] };
   for (const rule of normalized) {
-    const bucket = rule.points >= 0 ? 'add' : 'minus';
-    data.rules[bucket].push(rule);
+    data.rules[ruleBucketOf(rule)].push(rule);
   }
-  return orderChanged;
+  return JSON.stringify(data.rules) !== beforeJSON;
 }
 
 if (normalizeRuleOrders()) save();
@@ -478,7 +526,7 @@ const DB = {
     return [...add, ...minus];
   },
 
-  // 内部：根据 points 符号返回所属数组（add / minus）
+  // 内部：根据 points 符号返回所属数组（add / minus，仅用于固定分值）
   _ruleBucket(points) {
     return points >= 0 ? 'add' : 'minus';
   },
@@ -492,16 +540,25 @@ const DB = {
     return this._allRules().find(r => r.id === id) || null;
   },
 
-  addRule(name, points) {
+  /**
+   * 添加规则
+   * @param {string} name 规则名称
+   * @param {number} points 固定分值（type 为 fixed 时生效）
+   * @param {object} [options] { type, presets }
+   */
+  addRule(name, points, options = {}) {
     const id = nextSeq('rules');
-    const bucket = this._ruleBucket(points);
-    const nextOrder = Math.max(0, ...this._allRules().map(r => Number(r.sort_order) || 0)) + 1;
+    const type = RULE_TYPES.includes(options.type) ? options.type : 'fixed';
     const rule = {
-      id, name, points,
-      sort_order: nextOrder,
+      id,
+      name,
+      type,
+      points: type === 'fixed' ? (Number(points) || 0) : 0,
+      sort_order: Math.max(0, ...this._allRules().map(r => Number(r.sort_order) || 0)) + 1,
       created_at: nowISO()
     };
-    data.rules[bucket].push(rule);
+    if (type !== 'fixed') rule.presets = normalizePresets(options.presets);
+    data.rules[ruleBucketOf(rule)].push(rule);
     normalizeRuleOrders();
     save();
     return id;
@@ -510,20 +567,30 @@ const DB = {
   updateRule(id, fields) {
     const r = this.getRule(id);
     if (!r) return null;
-    // 若分值符号改变，需要移动到对应数组
-    if (fields.points !== undefined && fields.points !== r.points) {
-      const oldBucket = this._ruleBucket(r.points);
-      const newBucket = this._ruleBucket(fields.points);
-      if (oldBucket !== newBucket) {
-        data.rules[oldBucket] = data.rules[oldBucket].filter(x => x.id !== id);
-        Object.assign(r, fields);
-        data.rules[newBucket].push(r);
-        normalizeRuleOrders();
-        save();
-        return r;
-      }
+    const beforeBucket = ruleBucketOf(r);
+
+    if (fields.name !== undefined) r.name = fields.name;
+    if (fields.type !== undefined) {
+      r.type = RULE_TYPES.includes(fields.type) ? fields.type : 'fixed';
     }
-    Object.assign(r, fields);
+
+    const type = ruleTypeOf(r);
+    if (type === 'fixed') {
+      const p = fields.points !== undefined ? Number(fields.points) : Number(r.points);
+      r.points = Number.isFinite(p) ? p : 0;
+      delete r.presets;
+    } else {
+      r.points = 0;
+      r.presets = normalizePresets(fields.presets !== undefined ? fields.presets : r.presets);
+    }
+
+    // 所属数组可能因类型/分值变化而改变
+    const afterBucket = ruleBucketOf(r);
+    if (beforeBucket !== afterBucket) {
+      data.rules[beforeBucket] = data.rules[beforeBucket].filter(x => x.id !== id);
+      data.rules[afterBucket].push(r);
+    }
+
     normalizeRuleOrders();
     save();
     return r;
@@ -532,7 +599,7 @@ const DB = {
   deleteRule(id) {
     const r = this.getRule(id);
     if (!r) return false;
-    const bucket = this._ruleBucket(r.points);
+    const bucket = ruleBucketOf(r);
     data.rules[bucket] = data.rules[bucket].filter(x => x.id !== id);
     normalizeRuleOrders();
     save();
@@ -778,12 +845,17 @@ const DB = {
           ...(importData.rules && Array.isArray(importData.rules.minus) ? importData.rules.minus : [])
         ];
     for (const r of importRules) {
-      const bucket = r.points >= 0 ? 'add' : 'minus';
-      data.rules[bucket].push({
-        id: r.id, name: r.name, points: r.points,
+      const type = RULE_TYPES.includes(r.type) ? r.type : 'fixed';
+      const rule = {
+        id: r.id,
+        name: r.name,
+        type,
+        points: type === 'fixed' ? (Number(r.points) || 0) : 0,
         sort_order: r.sort_order || 0,
         created_at: r.created_at || nowISO()
-      });
+      };
+      if (type !== 'fixed') rule.presets = normalizePresets(r.presets);
+      data.rules[ruleBucketOf(rule)].push(rule);
     }
 
     // 导入商店商品
@@ -846,4 +918,6 @@ const DB = {
 };
 
 DB.flush = flush;
+DB.RULE_TYPES = RULE_TYPES;
+DB.DEFAULT_PRESETS = DEFAULT_PRESETS;
 module.exports = DB;
