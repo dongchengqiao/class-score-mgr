@@ -26,19 +26,28 @@ function readConfig() {
   }
 }
 
+/** 读取 config.json 中的端口（无有效值返回 null） */
+function readConfigPort() {
+  const cfg = readConfig();
+  const n = cfg ? parseInt(cfg.port, 10) : NaN;
+  return Number.isFinite(n) && n > 0 && n < 65536 ? n : null;
+}
+
+/** 端口是否来自启动参数 PORT（被配置覆盖时视为否） */
+function hasEnvPort() {
+  if (process.env.CSM_PORT_FROM_CONFIG === '1') return false;
+  const n = parseInt(process.env.PORT, 10);
+  return Number.isFinite(n) && n > 0 && n < 65536;
+}
+
 /**
  * 读取服务端口
  * 优先级：环境变量 PORT（非配置覆盖的） > data/config.json 的 port > 默认 4000
  */
 function readPort() {
-  if (process.env.CSM_PORT_FROM_CONFIG !== '1') {
-    const envPort = parseInt(process.env.PORT, 10);
-    if (envPort > 0 && envPort < 65536) return envPort;
-  }
-  const cfg = readConfig();
-  const cfgPort = cfg ? parseInt(cfg.port, 10) : NaN;
-  if (cfgPort > 0 && cfgPort < 65536) return cfgPort;
-  return DEFAULT_PORT;
+  if (hasEnvPort()) return parseInt(process.env.PORT, 10);
+  const cfgPort = readConfigPort();
+  return cfgPort !== null ? cfgPort : DEFAULT_PORT;
 }
 
 /** data 目录是否不存在或为空 */
@@ -100,6 +109,8 @@ module.exports = {
   ENTITY_FILES,
   readConfig,
   readPort,
+  readConfigPort,
+  hasEnvPort,
   needsSetup,
   markCompleted,
   getVersion

@@ -3,6 +3,7 @@
 //   - STARTED_AT 用于前端判断「服务是否已重启」
 //   - register(server) 由 server.js 在监听成功后调用
 //   - restart() 关闭旧进程并派生一个全新的 node 进程（detached）
+//     若当前进程挂在终端上，新进程会继承 stdio，输出继续显示在原终端窗口
 // ============================================================
 const { spawn } = require('child_process');
 const fs = require('fs');
@@ -13,9 +14,15 @@ const STARTED_AT = new Date().toISOString();
 
 const BACKEND_DIR = path.join(__dirname, '..');
 const SERVER_ENTRY = path.join(BACKEND_DIR, 'server.js');
-// 新进程的日志目录（脱离终端后仍可查看输出）
+// 脱离终端时的日志文件（终端关闭后仍可查看输出）
 const LOG_DIR = path.join(BACKEND_DIR, '..', 'logs');
 const LOG_FILE = path.join(LOG_DIR, 'server.log');
+
+// 是否让新进程沿用当前终端窗口（默认开启；CSM_TERMINAL=0 可关闭，改为写日志文件）
+const PREFER_TERMINAL = process.env.CSM_TERMINAL !== '0';
+// 当前进程是否有可用终端（终端窗口被关闭后这个标记可能仍为 true，故需失败回退）
+const HAS_TTY = !!(process.stdout && process.stdout.isTTY);
+const TERMINAL_INHERIT = PREFER_TERMINAL && HAS_TTY;
 
 let server = null;
 
@@ -27,18 +34,14 @@ function register(srv) {
 /**
  * 启动一个全新的后端进程
  * - detached：脱离父进程，父进程退出后仍存活
- * - stdio 写入日志文件：不绑定终端，避免终端关闭导致子进程被回收
+ * - inherit 模式：继承父进程 stdout/stderr，输出继续显示在原终端窗口（同时写入日志文件）
+ * - log 模式：stdio 重定向到日志文件，脱离终端也能留下完整输出
+ * @param {number|null} port 新进程监听端口
+ * @param {'auto'|'inherit'|'log'} [mode] stdio 模式，auto 时按是否有终端决定
+ * @returns {import('child_process').ChildProcess}
  */
-function spawnNewProcess(port) {
-  let stdio = ['ignore', 'ignore', 'ignore'];
-  try {
-    fs.mkdirSync(LOG_DIR, { recursive: true });
-    const fd = fs.openSync(LOG_FILE, 'a');
-    stdio = ['ignore', fd, fd];
-  } catch (err) {
-    console.warn('无法打开重启日志文件，改为静默模式:', err.message);
-  }
-
+function spawnNewProcess(port, mode = 'auto') {
+  const inherit = mode === 'auto' ? TERMINAL_INHERIT : mode === 'inherit';
   const env = { ...process.env, CSM_RESPAWNED: '1' };
   // 端口切换：必须覆盖继承来的 PORT，否则新进程仍会去监听旧端口
   if (Number.isFinite(port)) {
@@ -47,14 +50,34 @@ function spawnNewProcess(port) {
     env.CSM_PORT_FROM_CONFIG = '1';
   }
 
+  let stdio;
+  if (inherit) {
+    // 沿用原终端窗口：继承父进程的 stdio，并让新进程自己再 tee 一份到日志文件
+    env.CSM_LOG_TEE = '1';
+    stdio = ['ignore', 'inherit', 'inherit'];
+  } else {
+    // 日志文件模式：不再 tee（避免重复写入同一个文件）
+    delete env.CSM_LOG_TEE;
+    stdio = ['ignore', 'ignore', 'ignore'];
+    try {
+      fs.mkdirSync(LOG_DIR, { recursive: true });
+      const fd = fs.openSync(LOG_FILE, 'a');
+      stdio = ['ignore', fd, fd];
+    } catch (err) {
+      console.warn('无法打开重启日志文件，改为静默模式:', err.message);
+    }
+  }
+
   const child = spawn(process.execPath, [SERVER_ENTRY], {
     cwd: BACKEND_DIR,
     detached: true,
     stdio,
     env
   });
+  // 派生失败时给出提示而不是抛出未捕获错误
+  child.on('error', err => console.error('派生新进程失败:', err.message));
   child.unref();
-  return child.pid;
+  return child;
 }
 
 /**
@@ -69,19 +92,46 @@ function restart(delay = 600, options = {}) {
   return new Promise(resolve => {
     setTimeout(() => {
       let spawned = false;
+      let exiting = false;
       const doSpawn = () => {
         if (spawned) return;
         spawned = true;
-        let pid = null;
+        let child = null;
         try {
-          pid = spawnNewProcess(port);
-          console.log(`🔄 已启动新进程（PID ${pid}${port ? `，端口 ${port}` : ''}），旧进程即将退出`);
+          child = spawnNewProcess(port, 'auto');
         } catch (err) {
           console.error('🔄 重启失败，请手动重启服务:', err.message);
         }
+        const pid = child ? child.pid : null;
+        if (pid) {
+          console.log(`🔄 已启动新进程（PID ${pid}${port ? `，端口 ${port}` : ''}），旧进程即将退出`);
+        }
         resolve({ restarted: !!pid, pid });
+
+        // 兜底：终端窗口被关闭后，继承的 stdout 写入失败会让新进程直接退出
+        // 发现新进程异常退出时，改用「日志文件」模式再启动一次，保证服务不中断
+        if (child && TERMINAL_INHERIT) {
+          const spawnedAt = Date.now();
+          child.once('exit', code => {
+            if (exiting) return;
+            if (code === 0 || Date.now() - spawnedAt > 5000) return;
+            console.warn('⚠️ 新进程启动失败（原终端可能已关闭），改用日志文件模式重启');
+            try {
+              const fallback = spawnNewProcess(port, 'log');
+              if (fallback && fallback.pid) {
+                console.log(`🔄 已改用后台日志模式启动（PID ${fallback.pid}），输出见 logs/server.log`);
+              }
+            } catch (err) {
+              console.error('🔄 回退启动也失败，请手动重启服务:', err.message);
+            }
+          });
+        }
+
         // 给新进程一点时间完成 listen 前的初始化，再退出旧进程
-        setTimeout(() => process.exit(0), 400);
+        setTimeout(() => {
+          exiting = true;
+          process.exit(0);
+        }, 900);
       };
 
       if (server && typeof server.close === 'function') {

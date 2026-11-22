@@ -132,6 +132,7 @@ router.post('/complete', async (req, res) => {
     if (body.className && String(body.className).trim()) {
       DB.setSetting('class_name', String(body.className).trim());
     }
+    // 端口持久化到 data/config.json（json-db 负责写入）
     DB.setSetting('port', port);
     DB.setSetting('setup_completed', true);
     DB.setSetting('setup_completed_at', new Date().toISOString());

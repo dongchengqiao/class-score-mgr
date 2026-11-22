@@ -68,4 +68,4 @@
 - 修复主页签栏文字被截断的问题，标签文字不再出现省略号。
 - 早读加分页的班级名称、页面标题改为从 `config.json` 的 `class_name` 动态同步。
 - `pinyinmap.json` 迁移至 `public/data/`，作为静态资源随代码发布；`data/` 目录不再纳入版本管理。
-- 自动重启后的服务日志写入 `logs/server.log`，脱离终端运行也不影响使用（设置环境变量 `AUTO_RESTART=0` 可关闭自动重启）。
+- 自动重启后的服务输出写入 `logs/server.log`，脱离终端运行也不影响使用（设置环境变量 `AUTO_RESTART=0` 可关闭自动重启）。

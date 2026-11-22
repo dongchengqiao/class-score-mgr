@@ -16,9 +16,7 @@ function validatePort(value) {
 
 /** 读取环境变量 PORT（未设置或被配置覆盖时返回 null） */
 function envPort() {
-  if (process.env.CSM_PORT_FROM_CONFIG === '1') return null;
-  const n = parseInt(process.env.PORT, 10);
-  return Number.isFinite(n) && n > 0 && n < 65536 ? n : null;
+  return setupState.hasEnvPort() ? parseInt(process.env.PORT, 10) : null;
 }
 
 // ==================== GET ====================
@@ -182,6 +180,7 @@ router.put('/port', (req, res) => {
     }
 
     const previousPort = setupState.readPort();
+    // 端口持久化到 data/config.json（json-db 负责写入，单一真源）
     DB.setSetting('port', port);
 
     if (port === previousPort) {

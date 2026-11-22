@@ -1,3 +1,6 @@
+// 日志分流：重启后沿用原终端时，输出同时写入 logs/server.log（须最先加载）
+require('./lib/log-tee').setupLogTee();
+
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -17,11 +20,19 @@ const adminRouter = require('./routes/admin');
 const updateRouter = require('./routes/update');
 const setupRouter = require('./routes/setup');
 const runtime = require('./lib/runtime');
+const DB = require('./json-db');
 const { authenticate, requireAdmin } = require('./middleware/auth');
 
 const app = express();
 // 端口优先级：环境变量 PORT > data/config.json 的 port > 默认 4000
 const PORT = setupState.readPort();
+
+// 端口号持久化到 data/config.json，方便直接查看/修改
+// 仅在「不是首次安装」且配置里没有 port、也没用 PORT 启动参数指定时补写
+// （首次安装不能写，否则 save() 会提前生成实体数据文件，导致向导被跳过）
+if (!setupState.needsSetup() && setupState.readConfigPort() === null && !setupState.hasEnvPort()) {
+  DB.setSetting('port', PORT);
+}
 
 // 需要初始化时重定向到向导页的页面
 const GUARDED_PAGES = ['/index.html', '/admin.html', '/login.html', '/zaodu.html', '/voice.html'];

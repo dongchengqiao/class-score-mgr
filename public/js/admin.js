@@ -551,10 +551,14 @@ const Admin = {
         return;
       }
 
-      // 过滤掉密码哈希（不显示）
+      // 过滤掉系统内部键（密码哈希、端口、初始化标记等，已有独立 UI）
+      const SYSTEM_KEYS = [
+        'app_password_hash', 'user_password_hash', 'school_name',
+        'port', 'setup_completed', 'setup_completed_at'
+      ];
       let html = '<table class="settings-table"><thead><tr><th>键名</th><th>值</th><th>操作</th></tr></thead><tbody>';
       for (const key of keys) {
-        if (key === 'app_password_hash' || key === 'user_password_hash' || key === 'school_name') continue;
+        if (SYSTEM_KEYS.includes(key)) continue;
         let val = settings[key];
         if (typeof val === 'object') val = JSON.stringify(val);
         html += `<tr>
