@@ -1106,10 +1106,16 @@ const Admin = {
       }).join('');
     }
 
-    // 更新日志
+    // 更新日志（Markdown 渲染）
     const notesEl = document.getElementById('updateReleaseNotes');
     const body = (data.body || '').trim();
-    notesEl.textContent = body || '该发行版未填写更新日志。';
+    if (body) {
+      notesEl.innerHTML = Admin.renderMarkdown(body);
+      notesEl.classList.add('is-markdown');
+    } else {
+      notesEl.textContent = '该发行版未填写更新日志。';
+      notesEl.classList.remove('is-markdown');
+    }
 
     // GitHub 链接
     const link = document.getElementById('updateReleaseLink');
@@ -1282,6 +1288,190 @@ const Admin = {
     let v = bytes;
     while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
     return `${v.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+  },
+
+  /**
+   * 轻量 Markdown 渲染（无外部依赖，供更新日志使用）
+   * 支持：标题、粗体/斜体/删除线、行内代码、代码块、链接、图片、
+   *      无序/有序列表、引用、分隔线、表格、段落与换行
+   * 安全性：先整体 HTML 转义，再生成标签，链接仅允许 http/https/mailto
+   */
+  renderMarkdown(src) {
+    const esc = Admin.escapeHtml;
+    const text = String(src == null ? '' : src).replace(/\r\n?/g, '\n');
+    if (!text.trim()) return '';
+
+    // 行内元素处理（输入已转义）
+    const inline = s => {
+      let out = s;
+      // 行内代码 `code`（先处理，避免内部内容被其它规则改写）
+      const codes = [];
+      out = out.replace(/`([^`\n]+)`/g, (_, code) => {
+        codes.push(`<code>${code}</code>`);
+        return `\u0000C${codes.length - 1}\u0000`;
+      });
+      // 图片 ![alt](url)
+      out = out.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (m, alt, href) => {
+        const safe = Admin.safeUrl(href);
+        return safe ? `<img src="${safe}" alt="${alt}" loading="lazy">` : m;
+      });
+      // 链接 [text](url)
+      out = out.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, label, href) => {
+        const safe = Admin.safeUrl(href);
+        return safe ? `<a href="${safe}" target="_blank" rel="noopener noreferrer">${label}</a>` : label;
+      });
+      // 裸链接
+      out = out.replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, (m, pre, href) => {
+        const safe = Admin.safeUrl(href);
+        return safe ? `${pre}<a href="${safe}" target="_blank" rel="noopener noreferrer">${href}</a>` : m;
+      });
+      // 粗体 / 斜体 / 删除线
+      out = out.replace(/\*\*\*([^*]+)\*\*\*/g, '<strong><em>$1</em></strong>')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/__([^_]+)__/g, '<strong>$1</strong>')
+        .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>')
+        .replace(/~~([^~]+)~~/g, '<del>$1</del>');
+      // 还原行内代码
+      out = out.replace(/\u0000C(\d+)\u0000/g, (_, i) => codes[Number(i)]);
+      return out;
+    };
+
+    const lines = text.split('\n');
+    const html = [];
+    let i = 0;
+    let paragraph = [];
+
+    const flushParagraph = () => {
+      if (!paragraph.length) return;
+      // 段内单换行 -> <br>
+      html.push(`<p>${paragraph.map(inline).join('<br>')}</p>`);
+      paragraph = [];
+    };
+
+    while (i < lines.length) {
+      const line = lines[i];
+
+      // 代码块 ```lang
+      const fence = line.match(/^\s*```([\w+-]*)\s*$/);
+      if (fence) {
+        flushParagraph();
+        const lang = fence[1];
+        const buf = [];
+        i++;
+        while (i < lines.length && !/^\s*```\s*$/.test(lines[i])) {
+          buf.push(esc(lines[i]));
+          i++;
+        }
+        i++; // 跳过结束围栏
+        html.push(
+          `<pre class="md-code">${lang ? `<span class="md-code-lang">${esc(lang)}</span>` : ''}` +
+          `<code>${buf.join('\n')}</code></pre>`
+        );
+        continue;
+      }
+
+      // 空行
+      if (!line.trim()) {
+        flushParagraph();
+        i++;
+        continue;
+      }
+
+      // 分隔线
+      if (/^\s*([-*_])\s*(\1\s*){2,}$/.test(line)) {
+        flushParagraph();
+        html.push('<hr>');
+        i++;
+        continue;
+      }
+
+      // 标题 # ~ ######
+      const heading = line.match(/^\s{0,3}(#{1,6})\s+(.*)$/);
+      if (heading) {
+        flushParagraph();
+        const level = Math.min(heading[1].length + 2, 6); // 面板内降级，避免标题过大
+        html.push(`<h${level}>${inline(heading[2].trim())}</h${level}>`);
+        i++;
+        continue;
+      }
+
+      // 引用 >
+      if (/^\s*>\s?/.test(line)) {
+        flushParagraph();
+        const buf = [];
+        while (i < lines.length && /^\s*>\s?/.test(lines[i])) {
+          buf.push(lines[i].replace(/^\s*>\s?/, ''));
+          i++;
+        }
+        html.push(`<blockquote>${buf.map(inline).join('<br>')}</blockquote>`);
+        continue;
+      }
+
+      // 表格 | a | b |
+      if (/^\s*\|.*\|\s*$/.test(line) && /^\s*\|[\s:|-]+\|\s*$/.test(lines[i + 1] || '')) {
+        flushParagraph();
+        const splitRow = row => row.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+        const head = splitRow(line);
+        i += 2; // 跳过表头与分隔行
+        const rows = [];
+        while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) {
+          rows.push(splitRow(lines[i]));
+          i++;
+        }
+        html.push(
+          '<table class="md-table"><thead><tr>' +
+          head.map(c => `<th>${inline(c)}</th>`).join('') +
+          '</tr></thead><tbody>' +
+          rows.map(r => '<tr>' + r.map(c => `<td>${inline(c)}</td>`).join('') + '</tr>').join('') +
+          '</tbody></table>'
+        );
+        continue;
+      }
+
+      // 列表（无序 - * + / 有序 1.）
+      if (/^\s*([-*+]|\d+[.)])\s+/.test(line)) {
+        flushParagraph();
+        const ordered = /^\s*\d+[.)]\s+/.test(line);
+        const items = [];
+        while (i < lines.length) {
+          const cur = lines[i];
+          const m = cur.match(/^\s*([-*+]|\d+[.)])\s+(.*)$/);
+          if (!m) {
+            // 支持列表项的续行（缩进 2 空格以上）
+            if (items.length && /^\s{2,}\S/.test(cur)) {
+              items[items.length - 1] += ' ' + cur.trim();
+              i++;
+              continue;
+            }
+            break;
+          }
+          if (/^\s*\d+[.)]\s+/.test(cur) !== ordered) break;
+          items.push(m[2]);
+          i++;
+        }
+        const tag = ordered ? 'ol' : 'ul';
+        html.push(
+          `<${tag}>` + items.map(t => `<li>${inline(t)}</li>`).join('') + `</${tag}>`
+        );
+        continue;
+      }
+
+      // 普通段落
+      paragraph.push(line);
+      i++;
+    }
+    flushParagraph();
+    return html.join('\n');
+  },
+
+  /** 仅放行安全协议，防止 javascript: 注入 */
+  safeUrl(url) {
+    const raw = String(url == null ? '' : url).trim();
+    if (!raw) return '';
+    if (/^(https?:|mailto:)/i.test(raw)) return Admin.escapeHtml(raw);
+    // 站内相对路径
+    if (/^(\/|\.{1,2}\/|#)/.test(raw)) return Admin.escapeHtml(raw);
+    return '';
   },
 
   /** HTML 转义 */

@@ -511,8 +511,7 @@
 }
 
 .update-notes {
-  max-height: 320px;
-  overflow-y: auto;
+  /* 不设内层滚动：页面本身已是滚动容器，避免出现双滑动条 */
   padding: 14px 16px;
   background: var(--light);
   border-radius: var(--radius-sm);
@@ -521,6 +520,160 @@
   color: var(--text);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* Markdown 渲染后的更新日志：由 HTML 结构控制排版，不再保留 pre-wrap */
+.update-notes.is-markdown {
+  white-space: normal;
+}
+
+.update-notes.is-markdown > :first-child { margin-top: 0; }
+.update-notes.is-markdown > :last-child { margin-bottom: 0; }
+
+.update-notes.is-markdown p {
+  margin: 0 0 10px;
+}
+
+.update-notes.is-markdown h3,
+.update-notes.is-markdown h4,
+.update-notes.is-markdown h5,
+.update-notes.is-markdown h6 {
+  margin: 16px 0 8px;
+  font-weight: 800;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.update-notes.is-markdown h3 {
+  font-size: 17px;
+}
+
+.update-notes.is-markdown h4 {
+  font-size: 16px;
+}
+
+.update-notes.is-markdown h5 {
+  font-size: 15px;
+}
+
+.update-notes.is-markdown h6 {
+  font-size: 14px;
+}
+
+.update-notes.is-markdown ul,
+.update-notes.is-markdown ol {
+  margin: 0 0 10px;
+  padding-left: 22px;
+}
+
+.update-notes.is-markdown li {
+  margin: 4px 0;
+}
+
+.update-notes.is-markdown li > ul,
+.update-notes.is-markdown li > ol {
+  margin: 4px 0;
+}
+
+.update-notes.is-markdown strong {
+  font-weight: 800;
+  color: var(--text);
+}
+
+.update-notes.is-markdown em {
+  font-style: italic;
+}
+
+.update-notes.is-markdown del {
+  opacity: 0.65;
+}
+
+.update-notes.is-markdown a {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 600;
+  border-bottom: 1px solid color-mix(in srgb, var(--primary) 40%, transparent);
+}
+
+.update-notes.is-markdown a:hover {
+  border-bottom-color: var(--primary);
+}
+
+.update-notes.is-markdown code {
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.08);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  color: #b5335a;
+}
+
+.update-notes.is-markdown pre.md-code {
+  position: relative;
+  margin: 10px 0;
+  padding: 12px 14px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  white-space: pre;
+  word-break: normal;
+}
+
+.update-notes.is-markdown pre.md-code code {
+  padding: 0;
+  background: none;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.update-notes.is-markdown .md-code-lang {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.55;
+}
+
+.update-notes.is-markdown blockquote {
+  margin: 10px 0;
+  padding: 6px 12px;
+  border-left: 3px solid var(--primary);
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  color: var(--text-light);
+}
+
+.update-notes.is-markdown hr {
+  margin: 14px 0;
+  border: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.update-notes.is-markdown img {
+  max-width: 100%;
+  border-radius: var(--radius-sm);
+}
+
+.update-notes.is-markdown table.md-table {
+  width: 100%;
+  margin: 10px 0;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.update-notes.is-markdown table.md-table th,
+.update-notes.is-markdown table.md-table td {
+  padding: 6px 10px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  text-align: left;
+  vertical-align: top;
+}
+
+.update-notes.is-markdown table.md-table th {
+  background: rgba(0, 0, 0, 0.05);
+  font-weight: 800;
 }
 
 .update-footer {
