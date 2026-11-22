@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: '要发布的版本标签（如 v1.1.0，需已存在）'
+        description: '要发布的版本标签'
         required: true
         type: string
 
@@ -64,12 +64,14 @@ jobs:
             echo "::warning::update.md 中未找到 $TAG 小节，将使用完整更新日志"
             cp update.md release_notes.md
           fi
-          # 追加下载/安装说明
+          # 追加下载/安装说明 + 完整更新日志链接
           {
             echo ""
             echo "---"
             echo ""
             echo "**安装方式**：下载下方 zip 包，解压后覆盖到原程序目录（保留原有 \`data/\` 数据目录），然后重启服务：\`./start.sh\`。"
+            echo ""
+            echo "📖 [查看完整更新日志](${{ github.server_url }}/${{ github.repository }}/blob/${{ steps.vars.outputs.tag }}/update.md)"
           } >> release_notes.md
           echo "--- 更新日志预览 ---"
           cat release_notes.md
