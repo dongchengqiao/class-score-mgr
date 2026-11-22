@@ -6,6 +6,9 @@ let studentList = [];
 let scoresMap = {};
 let currentOrderIds = [];
 
+/** 班级名称（从 config.json 的 class_name 同步） */
+let currentClassName = '';
+
 // ==================== 权限/登录状态 ====================
 
 /** 当前是否为只读访客模式 */
@@ -59,6 +62,26 @@ function updateAuthBanner() {
 }
 
 // ==================== 学生列表管理 ====================
+
+/** 从后端加载班级名称（config.json 的 class_name），并同步到标题与徽标 */
+async function loadClassName() {
+  try {
+    const data = await API.getSettings();
+    const settings = (data && data.settings) ? data.settings : (data || {});
+    currentClassName = (settings.class_name || '').trim();
+  } catch (e) {
+    console.warn('加载班级名称失败:', e);
+    currentClassName = '';
+  }
+  if (!currentClassName) return;
+
+  // 页面标题
+  document.title = `早读加分 · ${currentClassName}`;
+
+  // 徽标
+  const badgeEl = document.getElementById('className');
+  if (badgeEl) badgeEl.textContent = currentClassName;
+}
 
 /** 从后端加载学生列表（数据来自主 DB） */
 async function loadStudents() {
@@ -174,7 +197,7 @@ function exportToCSV() {
   link.href = url;
   const now = new Date();
   const dateStr = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
-  link.setAttribute('download', `早读积分_703班_${dateStr}.csv`);
+  link.setAttribute('download', `早读积分_${currentClassName || '班级'}_${dateStr}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -256,6 +279,7 @@ function bindGlobalButtons() {
 async function initSystem() {
   await checkAuth();
   updateAuthBanner();
+  await loadClassName();
   await loadStudents();
   // 更新总人数显示
   const totalEl = document.getElementById('totalStudents');

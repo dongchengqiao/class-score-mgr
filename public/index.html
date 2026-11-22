@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="page-index">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,6 +9,8 @@
   <script src="vendor/xlsx/xlsx.full.min.js"></script>
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/voice.css">
+  <link rel="stylesheet" href="css/header-nav.css">
+  <link rel="stylesheet" href="css/layout.css">
 </head>
 <body class="theme-vibrant">
   <!-- 背景装饰
@@ -48,11 +50,28 @@
         <button id="goToMorningReading" class="btn btn-accent3" onclick="location.href='/zaodu.html'"><i class="fas fa-book-open"></i> 早读加分</button>
         <button id="goToVoice" class="btn btn-accent3"><i class="fas fa-microphone"></i> 语音加分</button>
         <button id="goToAdmin" class="btn btn-secondary" onclick="location.href='/admin.html'"><i class="fas fa-shield-alt"></i> 管理后台</button>
-        <button id="exportDetailsBtn" class="btn btn-secondary"><i class="fas fa-file-excel"></i> 导出积分明细</button>
-        <button id="exportGroupBtn" class="btn btn-secondary"><i class="fas fa-users"></i> 导出小组积分</button>
-        <button id="exportData" class="btn btn-secondary"><i class="fas fa-download"></i> 导出数据</button>
+
+        <div class="header-more" id="exportMenu">
+          <button id="exportMenuBtn" class="btn btn-secondary" aria-haspopup="true" aria-expanded="false">
+            <i class="fas fa-file-export"></i> 导出
+            <i class="fas fa-chevron-down header-more-caret"></i>
+          </button>
+          <div class="header-more-menu" id="exportMenuList" role="menu">
+            <button id="exportDetailsBtn" class="header-more-item" role="menuitem"><i class="fas fa-file-excel"></i> 导出积分明细</button>
+            <button id="exportGroupBtn" class="header-more-item" role="menuitem"><i class="fas fa-users"></i> 导出小组积分</button>
+            <button id="exportData" class="header-more-item" role="menuitem"><i class="fas fa-download"></i> 导出数据</button>
+          </div>
+        </div>
         <button id="importData" class="btn btn-primary"><i class="fas fa-upload"></i> 导入数据</button>
         <input type="file" id="importFile" accept=".json" style="display:none;">
+
+        <!-- 空间不足时自动收纳的「更多」菜单 -->
+        <div class="header-more" id="overflowMenu" data-nav-more hidden>
+          <button id="overflowMenuBtn" class="btn" data-nav-more-btn aria-haspopup="true" aria-expanded="false" title="更多">
+            <i class="fas fa-ellipsis"></i>
+          </button>
+          <div class="header-more-menu" id="overflowMenuList" data-nav-more-list role="menu"></div>
+        </div>
       </div>
     </header>
 
@@ -82,15 +101,6 @@
                 <input type="text" id="studentSearchInput" class="form-control" placeholder="搜索学生姓名...">
               </div>
               <div id="allStudents" class="student-list"></div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-header">
-              <h2 class="card-title"><i class="fas fa-users"></i> 未分组学生</h2>
-            </div>
-            <div class="card-body">
-              <div id="ungroupedStudents" class="student-list dropzone"></div>
             </div>
           </div>
         </div>

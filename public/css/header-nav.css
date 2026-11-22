@@ -1,0 +1,149 @@
+/* ============================================================
+   通用顶部导航样式
+   index.html / admin.html / voice.html 共用（zaodu.html 不使用）
+   内容：幽灵按钮（去背景）、下拉菜单、空间不足时的「更多」折叠
+   ============================================================ */
+
+/* ---------- 导航容器 ---------- */
+.nav-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  /* 作为页头右侧子项：吃掉剩余空间并靠右对齐；
+     允许收缩到 0，空间不足时才会触发「更多」折叠 */
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  min-width: 0;
+  flex-wrap: nowrap;
+  overflow: visible;
+}
+
+/* ---------- 幽灵按钮：无背景、无阴影 ---------- */
+.nav-bar .btn {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  font-size: 13px;
+  gap: 6px;
+  white-space: nowrap;
+  background: transparent;
+  color: var(--text);
+  box-shadow: none;
+  border-radius: var(--radius-sm);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.nav-bar .btn:hover {
+  background: var(--light);
+  color: var(--primary);
+  transform: none;
+  box-shadow: none;
+  opacity: 1;
+}
+
+.nav-bar .btn:active { transform: none; }
+
+.nav-bar .btn i { font-size: 12px; }
+
+/* ---------- 下拉菜单容器 ---------- */
+.header-more {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.header-more[hidden] { display: none !important; }
+
+/* 被收纳进「更多」菜单的按钮 */
+.nav-bar > .header-collapsed { display: none !important; }
+
+/* ---------- 下拉菜单面板 ---------- */
+.header-more-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 190px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.14);
+  padding: 6px;
+  display: none;
+  z-index: 1200;
+}
+
+.header-more.open .header-more-menu { display: block; }
+
+/* 菜单内按钮恢复为整行条目（放在 .nav-bar .btn 之后以覆盖其紧凑参数） */
+.header-more-menu .btn {
+  width: 100%;
+  justify-content: flex-start;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  box-shadow: none;
+}
+
+.header-more-menu .btn:hover {
+  background: var(--light);
+  color: var(--primary);
+  transform: none;
+  box-shadow: none;
+}
+
+.header-more-menu .btn i {
+  width: 16px;
+  text-align: center;
+  color: var(--text-light);
+}
+
+.header-more-menu .btn:hover i { color: var(--primary); }
+
+/* ---------- 菜单条目 ---------- */
+.header-more-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-main);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.header-more-item i {
+  width: 16px;
+  text-align: center;
+  color: var(--text-light);
+}
+
+.header-more-item:hover {
+  background: var(--light);
+  color: var(--primary);
+}
+
+.header-more-item:hover i { color: var(--primary); }
+
+/* ---------- 展开箭头 ---------- */
+.header-more-caret {
+  font-size: 10px;
+  margin-left: 2px;
+  transition: transform 0.2s ease;
+}
+
+.header-more.open .header-more-caret { transform: rotate(180deg); }
+
+/* ---------- 紧凑底部 ---------- */
+.app-footer-compact {
+  margin-top: 24px;
+  padding: 12px 16px 16px;
+  font-size: 12px;
+}

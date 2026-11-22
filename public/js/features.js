@@ -260,6 +260,8 @@ const Auth = {
     if (logoutBtn) logoutBtn.style.display = this.isAuthenticated ? 'inline-flex' : 'none';
     // 用户（非管理员）登录时，主页显示"用管理员密码登录"按钮
     if (adminLoginBtn) adminLoginBtn.style.display = (this.isAuthenticated && !this.isAdmin) ? 'inline-flex' : 'none';
+    // 按钮显隐变化后重新计算顶部折叠
+    if (typeof App !== 'undefined' && App.refreshHeaderOverflow) App.refreshHeaderOverflow();
   },
 
   /** 退出登录 */
@@ -302,7 +304,7 @@ const Auth = {
         this.isAuthenticated = true;
         this.isAdmin = true;
         Auth.updateAuthButtons();
-        if (appContainer) appContainer.style.display = 'block';
+        if (appContainer) appContainer.style.removeProperty('display');
         return;
       }
 
@@ -321,7 +323,7 @@ const Auth = {
               this.isAdmin = true;
               this.isGuest = false;
               Auth.updateAuthButtons();
-              if (appContainer) appContainer.style.display = 'block';
+              if (appContainer) appContainer.style.removeProperty('display');
               return;
             } else if (payload.role === 'user') {
               // 用户（可加减分，不可访问管理后台）
@@ -329,7 +331,7 @@ const Auth = {
               this.isAdmin = false;
               this.isGuest = false;
               Auth.updateAuthButtons();
-              if (appContainer) appContainer.style.display = 'block';
+              if (appContainer) appContainer.style.removeProperty('display');
               return;
             } else {
               // guest token（旧版）→ 清除，按访客处理
@@ -349,12 +351,12 @@ const Auth = {
       this.isAuthenticated = false;
       this.isAdmin = false;
       Auth.updateAuthButtons();
-      if (appContainer) appContainer.style.display = 'block';
+      if (appContainer) appContainer.style.removeProperty('display');
       document.body.classList.add('guest-mode');
     } catch (e) {
       Auth.isAuthenticated = true;
       Auth.isAdmin = true;
-      document.querySelector('.app-container').style.display = 'block';
+      document.querySelector('.app-container')?.style.removeProperty('display');
     }
   },
 

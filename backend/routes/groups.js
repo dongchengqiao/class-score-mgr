@@ -123,7 +123,6 @@ router.delete('/:groupId/students/:studentId', (req, res) => {
       return res.status(404).json({ error: '该学生不在此小组' });
     }
     DB.setStudentGroup(sid, null);
-    DB.addHistory(sid, 0, '从小组移除');
     DB.getStudents(); // ensure any pending ops done
     res.json({ success: true });
   } catch (err) {

@@ -45,7 +45,6 @@ const App = {
 
   renderAll() {
     this.renderAllStudents();
-    this.renderUngroupedStudents();
     this.renderGroups();
     this.renderLeaderboards();
     this.renderRules();
@@ -119,20 +118,28 @@ const App = {
       App.updateSelectionButtons();
     });
 
-    // 移除小组按钮
-    if (student.group_id && !isInGroupView) {
+    // 移除小组按钮（在所有学生列表与小组视图里都可用，默认悬停显示）
+    if (student.group_id) {
       const removeBtn = document.createElement('button');
       removeBtn.className = 'remove-from-group-btn';
       removeBtn.innerHTML = '<i class="fas fa-times"></i>';
       removeBtn.title = '从小组移除';
       removeBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
-        await API.removeStudentFromGroup(student.group_id, student.id);
-        await App.loadAllData();
-        App.renderAll();
+        UI.confirm('移出小组', `确定把「${student.name}」移出当前小组吗？`, async () => {
+          await API.removeStudentFromGroup(student.group_id, student.id);
+          await App.loadAllData();
+          App.renderAll();
+        });
       });
       card.appendChild(removeBtn);
     }
+
+    // 悬停/聚焦时显示移除按钮（避免依赖 :hover 在部分浏览器下的不稳定表现）
+    card.addEventListener('mouseenter', () => card.classList.add('is-hovered'));
+    card.addEventListener('mouseleave', () => card.classList.remove('is-hovered'));
+    card.addEventListener('focusin', () => card.classList.add('is-hovered'));
+    card.addEventListener('focusout', () => card.classList.remove('is-hovered'));
 
     return card;
   },
@@ -144,13 +151,6 @@ const App = {
     if (!el) return;
     el.innerHTML = '';
     this.students.forEach(s => el.appendChild(this.createStudentCard(s)));
-  },
-
-  renderUngroupedStudents() {
-    const el = document.getElementById('ungroupedStudents');
-    if (!el) return;
-    el.innerHTML = '';
-    this.students.filter(s => !s.group_id).forEach(s => el.appendChild(this.createStudentCard(s)));
   },
 
   searchStudents() {
@@ -202,6 +202,7 @@ const App = {
         </div>
         <div class="group-actions">
           <button class="btn btn-sm btn-primary add-students-btn" data-id="${group.id}"><i class="fas fa-user-plus"></i> 添加学生</button>
+          <button class="btn btn-sm btn-accent3 remove-students-btn" data-id="${group.id}"><i class="fas fa-user-minus"></i> 移除学生</button>
           <button class="btn btn-sm btn-secondary edit-group-btn" data-id="${group.id}"><i class="fas fa-edit"></i> 编辑组名</button>
           <button class="btn btn-sm btn-accent1 group-points-btn" data-id="${group.id}"><i class="fas fa-coins"></i> 小组积分</button>
         </div>
@@ -209,6 +210,7 @@ const App = {
       area.appendChild(card);
 
       card.querySelector('.add-students-btn').onclick = () => App.showAddStudentToGroupModal(group.id);
+      card.querySelector('.remove-students-btn').onclick = () => App.showRemoveStudentsFromGroupModal(group.id);
       card.querySelector('.edit-group-btn').onclick = () => App.showEditGroupModal(group.id);
       card.querySelector('.group-points-btn').onclick = () => App.showGroupPointsModal(group.id);
 
@@ -634,6 +636,55 @@ const App = {
     };
   },
 
+  // ==================== 从小组移除学生弹窗 ====================
+
+  async showRemoveStudentsFromGroupModal(groupId) {
+    if (!Auth.requireAuth()) return;
+    const group = this.groups.find(g => g.id === groupId);
+    if (!group) return;
+    const members = this.students.filter(s => s.group_id === groupId);
+    if (!members.length) { alert('该小组还没有学生'); return; }
+
+    let html = `<h3>从「${group.name}」移除学生</h3>
+      <div class="form-group"><label class="student-select-label" style="font-weight:bold;cursor:pointer;">
+        <input type="checkbox" id="removeSelectAllCheckbox" style="margin-right:10px;"> 全选/取消全选</label></div>
+      <div class="student-select-list">`;
+    members.forEach(s => {
+      html += `<div class="student-select-item ${s.gender}">
+        <label class="student-select-label"><input type="checkbox" class="remove-student-checkbox" value="${s.id}">
+          <div class="student-select-info">
+            <div class="student-select-avatar ${s.gender}">${(s.name||'?').charAt(0)}</div>
+            <span>${s.name}</span>
+          </div></label></div>`;
+    });
+    html += `</div>
+      <p style="color:var(--text-light);font-size:13px;margin-top:10px;">
+        <i class="fas fa-circle-info"></i> 移除后学生仍保留原有积分，只是变为「未分组」状态。
+      </p>
+      <div class="modal-footer">
+        <button id="removeSelectedStudentsBtn" class="btn btn-danger"><i class="fas fa-user-minus"></i> 移除所选学生</button>
+      </div>`;
+    UI.openModal(html);
+
+    const selectAll = document.getElementById('removeSelectAllCheckbox');
+    if (selectAll) {
+      selectAll.onchange = () => {
+        document.querySelectorAll('.remove-student-checkbox').forEach(cb => { cb.checked = selectAll.checked; });
+      };
+    }
+
+    document.getElementById('removeSelectedStudentsBtn').onclick = async () => {
+      const ids = [...document.querySelectorAll('.remove-student-checkbox:checked')].map(cb => parseInt(cb.value));
+      if (!ids.length) { alert('请选择要移除的学生'); return; }
+      UI.closeModal();
+      for (const id of ids) {
+        await API.removeStudentFromGroup(groupId, id);
+      }
+      await App.loadAllData();
+      App.renderAll();
+    };
+  },
+
   // ==================== 编辑小组名称 ====================
 
   showEditGroupModal(groupId) {
@@ -790,6 +841,185 @@ const App = {
     }
   },
 
+  // ==================== 顶部按钮溢出折叠 ====================
+
+  setupHeaderOverflow() {
+    const controls = document.querySelector('.header-controls');
+    const menu = document.getElementById('overflowMenu');
+    const menuBtn = document.getElementById('overflowMenuBtn');
+    const menuList = document.getElementById('overflowMenuList');
+    if (!controls || !menu || !menuBtn || !menuList) return;
+
+    const GAP = 2;
+    const items = Array.from(controls.children).filter(el =>
+      el.nodeType === 1 && el !== menu && el.id !== 'importFile'
+    );
+
+    // 每个单元 = 可折叠元素 + 折叠后移入菜单的节点
+    const units = items.map(el => {
+      if (el.id === 'exportMenu') {
+        const list = el.querySelector('.header-more-menu');
+        return { el, home: list, nodes: list ? Array.from(list.children) : [] };
+      }
+      return { el, home: controls, nodes: [el] };
+    });
+
+    const restore = () => {
+      // 先把导出菜单的子项放回它自己的下拉容器
+      units.forEach(u => {
+        u.el.classList.remove('header-collapsed');
+        if (u.home !== controls) u.nodes.forEach(n => u.home.appendChild(n));
+      });
+      // 再按原始顺序把顶层按钮插回「更多」按钮之前，避免顺序错乱
+      units.forEach(u => {
+        if (u.home === controls) controls.insertBefore(u.el, menu);
+      });
+    };
+
+    const closeMenu = () => {
+      menu.classList.remove('open');
+      menuBtn.setAttribute('aria-expanded', 'false');
+    };
+
+    // 按钮宽度与视口宽度无关（flex:0 0 auto + nowrap），因此只需测量一次并缓存。
+    // 仅在内容变化（字体加载、登录状态切换）时失效重测，避免测量本身触发重排循环。
+    let naturalWidths = null;   // 各单元在完整状态下的宽度
+    let menuBtnWidth = 0;
+    let currentPlan = '';       // 当前已应用的折叠方案（逗号分隔的下标）
+
+    /** 在完整状态下测量一次各单元宽度 */
+    const measure = () => {
+      restore();
+      menu.hidden = true;
+      menuList.innerHTML = '';
+      closeMenu();
+      naturalWidths = units.map(u => u.el.getBoundingClientRect().width);
+      menu.hidden = false;
+      menuBtnWidth = menuBtn.getBoundingClientRect().width;
+      menu.hidden = true;
+      currentPlan = '';
+    };
+
+    /** 应用折叠方案（仅在方案变化时改动 DOM，避免重排循环） */
+    const applyPlan = (plan) => {
+      const key = plan.join(',');
+      if (key === currentPlan) return;
+      currentPlan = key;
+
+      restore();
+      menuList.innerHTML = '';
+      closeMenu();
+
+      if (!plan.length) {
+        menu.hidden = true;
+        return;
+      }
+
+      menu.hidden = false;
+      // 按页面从左到右的顺序收进菜单，而不是按收集顺序（倒序）
+      units.forEach((u, i) => {
+        if (!plan.includes(i)) return;
+        u.el.classList.add('header-collapsed');
+        u.nodes.forEach(n => menuList.appendChild(n));
+      });
+    };
+
+    const layout = () => {
+      // 窄屏下按钮允许换行，无需折叠
+      if (getComputedStyle(controls).flexWrap === 'wrap') {
+        applyPlan([]);
+        return;
+      }
+
+      const available = controls.clientWidth;
+      if (!available) return;
+      if (!naturalWidths) measure();
+
+      const widths = naturalWidths;
+      const visibleCount = widths.filter(w => w > 0).length;
+      let total = widths.reduce((sum, w) => sum + w, 0) + GAP * Math.max(0, visibleCount - 1);
+
+      if (total <= available) {
+        applyPlan([]);
+        return;
+      }
+
+      // 需要折叠：为「更多」按钮预留位置
+      const budget = available - menuBtnWidth - GAP;
+      const plan = [];
+      for (let i = units.length - 1; i >= 0 && total > budget; i--) {
+        if (widths[i] <= 0) continue;
+        plan.push(i);
+        total -= widths[i] + GAP;
+      }
+      applyPlan(plan);
+    };
+
+    menuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = menu.classList.toggle('open');
+      menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    document.addEventListener('click', (e) => {
+      if (!menu.contains(e.target)) closeMenu();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeMenu();
+    });
+    menuList.addEventListener('click', (e) => {
+      if (e.target.closest('button')) closeMenu();
+    });
+
+    // 用 setTimeout 而非 rAF：后台标签页中 rAF 会被节流甚至不触发。
+    // 注意不要重置已排队的定时器，否则连续触发时永远等不到执行。
+    let timer = null;
+    const schedule = () => {
+      if (timer) return;
+      timer = setTimeout(() => { timer = null; layout(); }, 60);
+    };
+
+    // 仅重新布局（复用缓存的按钮宽度）
+    const relayout = () => schedule();
+
+    // 内容变化（字体加载、登录状态切换）时才需要重新测量
+    const remeasure = () => {
+      naturalWidths = null;
+      schedule();
+    };
+
+    if (window.ResizeObserver) new ResizeObserver(relayout).observe(controls);
+    window.addEventListener('resize', relayout);
+    window.addEventListener('load', remeasure);
+    // 字体加载完成后按钮宽度会变化，需要重新测量
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(remeasure);
+    }
+
+    // 标签页重新可见时立即重算（后台标签页中事件会被节流）
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) relayout();
+    });
+
+    // 兜底轮询：后台标签页中 ResizeObserver / resize 事件可能被节流，
+    // 这里用极轻量的宽度比对保证折叠状态始终正确
+    let lastSeenWidth = -1;
+    setInterval(() => {
+      const w = controls.clientWidth;
+      if (w === lastSeenWidth) return;
+      lastSeenWidth = w;
+      relayout();
+    }, 400);
+
+    // 供登录状态变化后重新计算
+    this._layoutHeaderOverflow = remeasure;
+    schedule();
+  },
+
+  /** 重新计算顶部按钮折叠状态 */
+  refreshHeaderOverflow() {
+    if (this._layoutHeaderOverflow) this._layoutHeaderOverflow();
+  },
+
   bindEvents() {
     // 搜索
     document.getElementById('studentSearchInput')?.addEventListener('input', () => App.searchStudents());
@@ -811,6 +1041,34 @@ const App = {
       if (!Auth.requireAuth()) return;
       document.getElementById('voiceModal').style.display = 'block';
     });
+
+    // 顶部「导出」下拉菜单
+    const exportMenu = document.getElementById('exportMenu');
+    const exportMenuBtn = document.getElementById('exportMenuBtn');
+    if (exportMenu && exportMenuBtn) {
+      const closeExportMenu = () => {
+        exportMenu.classList.remove('open');
+        exportMenuBtn.setAttribute('aria-expanded', 'false');
+      };
+      exportMenuBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const open = exportMenu.classList.toggle('open');
+        exportMenuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+      document.addEventListener('click', (e) => {
+        if (!exportMenu.contains(e.target)) closeExportMenu();
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeExportMenu();
+      });
+      // 点击菜单项后自动收起
+      exportMenu.querySelectorAll('.header-more-item').forEach(item => {
+        item.addEventListener('click', closeExportMenu);
+      });
+    }
+
+    // 顶部按钮溢出折叠
+    this.setupHeaderOverflow();
 
     // 导出/导入
     document.getElementById('exportData')?.addEventListener('click', () => DataManager.exportAll());

@@ -497,9 +497,12 @@ body.multi-select-mode .student-card .multi-select-checkbox { display: block; }
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
   position: relative;
-  background: var(--secondary);
-  color: white;
+  background: var(--white);
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
 }
 
 .group-name {
@@ -511,7 +514,19 @@ body.multi-select-mode .student-card .multi-select-checkbox { display: block; }
   gap: 10px;
 }
 
-.group-points { display: flex; gap: 15px; font-weight: 700; }
+.group-name i { color: var(--secondary); }
+
+.group-points { display: flex; gap: 15px; font-weight: 700; color: var(--text); }
+
+.group-points span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--text-light);
+}
+
+.group-points span i { color: var(--accent1); }
 
 .group-actions {
   padding: 10px 15px;
@@ -537,7 +552,7 @@ body.multi-select-mode .student-card .multi-select-checkbox { display: block; }
 
 .group-students.drag-over { border-color: var(--secondary); background: rgba(79,194,248,0.05); }
 .group-students .student-card { width: auto; max-width: 130px; position: relative; }
-.group-students .student-card-inner { display: flex; align-items: center; padding: 8px; cursor: pointer; transition: background-color 0.2s ease; }
+.group-students .student-card-inner { display: flex; align-items: center; padding: 8px 26px 8px 8px; cursor: pointer; transition: background-color 0.2s ease; }
 .group-students .student-card-inner:hover { background-color: var(--light); }
 .group-students .student-avatar { width: 36px; height: 36px; font-size: 16px; margin: 0 8px 0 0; }
 .group-students .student-info { text-align: left; padding: 0; }
@@ -574,12 +589,30 @@ body.multi-select-mode .student-card .multi-select-checkbox { display: block; }
   justify-content: center;
   cursor: pointer;
   opacity: 0;
-  transition: all 0.2s ease;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease, background-color 0.2s ease;
   z-index: 10;
   border: none;
 }
-.student-card:hover .remove-from-group-btn { opacity: 1; }
+/* 默认隐藏，鼠标悬停到学生卡片时才显示 */
+.student-card:hover .remove-from-group-btn,
+.student-card:focus-within .remove-from-group-btn,
+.student-card.is-hovered .remove-from-group-btn {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
 .remove-from-group-btn:hover { transform: scale(1.2); background-color: var(--primary); }
+
+/* 触屏设备无法悬停，保持常驻显示以便可点 */
+@media (hover: none) and (pointer: coarse) {
+  .group-students .remove-from-group-btn {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+}
 
 /* ======= 排行榜 ======= */
 .leaderboard-section { margin-bottom: 30px; }
@@ -783,6 +816,23 @@ body.multi-select-mode .student-card .multi-select-checkbox { display: block; }
 .close:hover { transform: rotate(90deg); }
 
 .modal-body { padding: 25px; max-height: 70vh; overflow-y: auto; }
+
+/*
+ * 弹窗内只允许 .modal-body 这一层滚动。
+ * 内部列表（学生选择、规则、历史、商店、小组导出等）原本有固定 max-height +
+ * overflow-y:auto，与外层 .modal-body 叠加就会出现两条竖向滚动条。
+ * 这里统一放开高度，让外层成为唯一滚动容器。
+ */
+.modal-body .student-select-list,
+.modal-body .rules-list,
+.modal-body .rules-options,
+.modal-body .history-list,
+.modal-body .shop-modal-items,
+.modal-body .group-export-list {
+  max-height: none;
+  overflow: visible;
+}
+
 .modal-footer {
   padding: 15px 25px;
   display: flex;

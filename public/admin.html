@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="vendor/fonts/fonts.css">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/admin.css">
+  <link rel="stylesheet" href="css/header-nav.css">
 </head>
 <body class="theme-vibrant">
   <div class="bg-decoration">
@@ -22,9 +23,19 @@
     <!-- 顶部导航 -->
     <header class="admin-header">
       <div class="admin-logo"><i class="fas fa-shield-alt"></i> 管理后台</div>
-      <div class="admin-header-right">
-        <span class="admin-badge" id="adminBadge"><i class="fas fa-lock"></i> 未验证</span>
-        <a href="/index.html" class="btn btn-sm btn-white"><i class="fas fa-arrow-left"></i> 返回首页</a>
+      <div class="admin-header-right nav-bar">
+        <span class="admin-badge" id="adminBadge" data-nav-static><i class="fas fa-lock"></i> 未验证</span>
+        <a href="/index.html" class="btn btn-sm"><i class="fas fa-house"></i> 首页</a>
+        <a href="/voice.html" class="btn btn-sm"><i class="fas fa-microphone"></i> 语音加分</a>
+        <a href="/zaodu.html" class="btn btn-sm"><i class="fas fa-book-open"></i> 早读加分</a>
+
+        <!-- 空间不足时自动收纳的「更多」菜单 -->
+        <div class="header-more" data-nav-more hidden>
+          <button class="btn btn-sm" data-nav-more-btn aria-haspopup="true" aria-expanded="false" title="更多">
+            <i class="fas fa-ellipsis"></i>
+          </button>
+          <div class="header-more-menu" data-nav-more-list role="menu"></div>
+        </div>
       </div>
     </header>
 
@@ -242,7 +253,7 @@
             <div class="admin-form-row">
               <div class="admin-form-group">
                 <label>班级名称</label>
-                <input type="text" id="adminClassName" class="form-control" placeholder="如: 703班">
+                <input type="text" id="adminClassName" class="form-control" placeholder="输入班级">
               </div>
               <div class="admin-form-actions" style="align-self:flex-end;">
                 <button id="adminSaveClassInfoBtn" class="btn btn-primary"><i class="fas fa-save"></i> 保存</button>
@@ -264,11 +275,11 @@
             <div class="admin-form-row">
               <div class="admin-form-group">
                 <label>设置键名</label>
-                <input type="text" id="settingKey" class="form-control" placeholder="如: class_name">
+                <input type="text" id="settingKey" class="form-control" placeholder="">
               </div>
               <div class="admin-form-group">
                 <label>设置值</label>
-                <input type="text" id="settingValue" class="form-control" placeholder="如: 703班">
+                <input type="text" id="settingValue" class="form-control" placeholder="">
               </div>
               <button id="addSettingBtn" class="btn btn-primary"><i class="fas fa-plus"></i> 添加/更新</button>
             </div>
@@ -335,6 +346,58 @@
         </div>
       </div>
 
+      <!-- 版本更新 -->
+      <div class="admin-section">
+        <h2 class="section-title"><i class="fas fa-cloud-download-alt"></i> 版本更新</h2>
+        <div class="admin-card">
+          <div class="admin-card-body">
+            <div class="update-toolbar">
+              <div class="update-version-box">
+                <span class="update-label">当前版本</span>
+                <span class="update-version" id="updateLocalVersion">—</span>
+              </div>
+              <button id="checkUpdateBtn" class="btn btn-primary"><i class="fas fa-sync-alt"></i> 检查更新</button>
+              <label class="update-proxy-toggle">
+                <input type="checkbox" id="updateUseProxy">
+                <span>使用gh-proxy加速下载</span>
+              </label>
+            </div>
+
+            <div id="updateStatusBox" class="update-status" style="display:none;"></div>
+
+            <div id="updateResultBox" class="update-result" style="display:none;">
+              <div class="update-result-head">
+                <div>
+                  <span class="update-label">最新版本</span>
+                  <span class="update-version" id="updateLatestVersion">—</span>
+                  <span id="updateTag" class="update-tag"></span>
+                </div>
+                <div class="update-meta" id="updatePublishedAt"></div>
+              </div>
+
+              <div class="update-downloads" id="updateDownloads"></div>
+
+              <div class="update-notes-label"><i class="fas fa-list-ul"></i> 更新日志</div>
+              <div class="update-notes" id="updateReleaseNotes"></div>
+
+              <div class="update-footer">
+                <button id="applyUpdateBtn" class="btn btn-primary" style="display:none;">
+                  <i class="fas fa-cloud-download-alt"></i> 一键自动更新
+                </button>
+                <a id="updateReleaseLink" class="btn btn-secondary" target="_blank" rel="noopener">
+                  <i class="fab fa-github"></i> 在 GitHub 查看发行版
+                </a>
+              </div>
+              <p class="update-hint">
+                <i class="fas fa-info-circle"></i>
+                自动更新会下载并覆盖程序文件（<code>backend/</code>、<code>public/</code> 等），
+                <strong>不会改动 <code>data/</code> 中的班级与学生数据</strong>；更新完成后需重启服务生效。
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -349,14 +412,15 @@
     </div>
   </div>
 
-  <script src="js/api.js"></script>
-  <script src="js/ui.js"></script>
-  <script src="js/admin.js"></script>
-
-  <footer class="app-footer">
+  <footer class="app-footer app-footer-compact">
     <a href="https://github.com/dongchengqiao/class-score-mgr" target="_blank" rel="noopener">
       <i class="fab fa-github"></i> GitHub · dongchengqiao/class-score-mgr
     </a>
   </footer>
+
+  <script src="js/api.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/header-nav.js"></script>
+  <script src="js/admin.js"></script>
 </body>
 </html>

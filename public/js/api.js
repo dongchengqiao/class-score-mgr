@@ -267,6 +267,34 @@ const API = {
     return this.request('GET', '/api/health');
   },
 
+  // ==================== 版本更新 ====================
+
+  /** 本地版本号 */
+  getLocalVersion() {
+    return this.request('GET', '/api/update/version');
+  },
+
+  /** 查询 GitHub 最新发行版（refresh=true 强制刷新） */
+  getLatestRelease(refresh) {
+    const qs = refresh ? '?refresh=1' : '';
+    return this.request('GET', `/api/update/latest${qs}`);
+  },
+
+  /** 一键自动更新：下载并覆盖代码，保留 data/ 数据 */
+  applyUpdate(body) {
+    return this.request('POST', '/api/update/apply', body || {});
+  },
+
+  /** 更新后运行状态（用于判断服务是否已重启） */
+  getUpdateStatus() {
+    return this.request('GET', '/api/update/status');
+  },
+
+  /** 手动重启后端服务 */
+  restartServer() {
+    return this.request('POST', '/api/update/restart');
+  },
+
   // ==================== 早读加分 ====================
 
   /** 获取早读加分数据（学生列表 + scoresMap，数据来自 class-data.json 的 reading_points） */

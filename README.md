@@ -55,14 +55,15 @@ npm start
 │   │   ├── data.js           # 数据导入导出 / Excel 报表
 │   │   ├── morning-reading.js# 早读加分
 │   │   └── admin.js          # 统计 / 设置
-├── data/                     # 数据目录（项目根目录）
+├── data/                     # 数据目录（项目根目录，已被 .gitignore 忽略，不纳入版本管理）
 │   ├── config.json           # 设置（settings）+ 自增序列（_sequences）
 │   ├── student.json          # 学生（students，含各自 history）
 │   ├── group.json            # 小组（groups）
 │   ├── rule.json             # 规则（rules，含 add / minus）
-│   ├── shouItems.json        # 售卖物品（shopItems）
-│   └── pinyinmap.json        # 汉字→拼音映射（879 条，语音匹配用）
+│   └── shouItems.json        # 售卖物品（shopItems）
 ├── public/                   # 前端（纯原生 HTML/CSS/JS）
+│   ├── data/
+│   │   └── pinyinmap.json    # 汉字→拼音映射（879 条，语音匹配用，静态资源）
 │   ├── index.html            # 主页面
 │   ├── admin.html            # 管理后台
 │   ├── login.html            # 登录页

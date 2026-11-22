@@ -111,15 +111,8 @@ const UI = {
         zone.classList.remove('drag-over');
         const studentId = parseInt(e.dataTransfer.getData('text/plain'));
         const groupId = zone.getAttribute('data-group-id');
-        if (groupId) {
-          await API.addStudentsToGroup(parseInt(groupId), [studentId]);
-        } else {
-          // 拖到未分组区域
-          const group = App.students.find(s => s.id === studentId)?.group_id;
-          if (group) {
-            await API.removeStudentFromGroup(group, studentId);
-          }
-        }
+        if (!groupId || Number.isNaN(studentId)) return;
+        await API.addStudentsToGroup(parseInt(groupId), [studentId]);
         await App.loadAllData();
       });
     });

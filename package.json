@@ -1,7 +1,7 @@
 {
   "name": "class-points-management",
   "version": "1.0.0",
-  "description": "班级积分管理系统 - 前后端分离",
+  "description": "班级积分管理系统",
   "scripts": {
     "install:all": "cd backend && npm install",
     "start": "cd backend && node server.js",

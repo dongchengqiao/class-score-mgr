@@ -1,0 +1,118 @@
+name: Release
+
+# 推送 v 开头的标签时自动发布；也可以在 Actions 页面手动指定标签发布
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要发布的版本标签（如 v1.1.0，需已存在）'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: 构建并发布发行版
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 解析版本标签
+        id: vars
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          TAG="$(echo "$TAG" | tr -d '[:space:]')"
+          if [ -z "$TAG" ]; then
+            echo "::error::未获取到版本标签"
+            exit 1
+          fi
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "版本标签: $TAG（$VERSION）"
+
+      - name: 从 update.md 提取本版本更新日志
+        run: |
+          set -euo pipefail
+          if [ ! -f update.md ]; then
+            echo "::error::缺少 update.md，无法生成更新日志"
+            exit 1
+          fi
+          TAG="${{ steps.vars.outputs.tag }}"
+          # 从匹配 "## vX.Y.Z" 的小节开始，到下一个同级（"## "）标题前结束
+          awk -v tag="$TAG" '
+            /^## / {
+              if (found) exit
+              if (index($0, tag) > 0) found = 1
+            }
+            found
+          ' update.md > release_notes.md || true
+          if [ ! -s release_notes.md ]; then
+            echo "::warning::update.md 中未找到 $TAG 小节，将使用完整更新日志"
+            cp update.md release_notes.md
+          fi
+          # 追加下载/安装说明
+          {
+            echo ""
+            echo "---"
+            echo ""
+            echo "**安装方式**：下载下方 zip 包，解压后覆盖到原程序目录（保留原有 \`data/\` 数据目录），然后重启服务：\`./start.sh\`。"
+          } >> release_notes.md
+          echo "--- 更新日志预览 ---"
+          cat release_notes.md
+
+      - name: 打包发布产物
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.vars.outputs.version }}"
+          STAGE="stage/class-score-mgr"
+          mkdir -p "$STAGE" dist
+          # 只打包运行所需内容，排除依赖、版本库、运行时数据与开发文件
+          rsync -a \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='backend/node_modules' \
+            --exclude='node_modules' \
+            --exclude='data' \
+            --exclude='nogit' \
+            --exclude='tests' \
+            --exclude='uploads' \
+            --exclude='.DS_Store' \
+            --exclude='*.bak' \
+            ./ "$STAGE/"
+          # 生成空白数据目录占位，保证首次启动即可用
+          mkdir -p "$STAGE/data"
+          cat > "$STAGE/data/README.txt" <<'EOF'
+此目录用于存放运行时数据（config.json / student.json / group.json / rule.json / shouItems.json）。
+升级时请保留该目录，不要覆盖，否则会丢失原有数据。
+EOF
+          cd stage
+          zip -r -q "../dist/class-score-mgr-${VERSION}.zip" "class-score-mgr"
+          cd ..
+          ls -lh dist/
+
+      - name: 创建 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          name: ${{ steps.vars.outputs.tag }}
+          body_path: release_notes.md
+          files: dist/class-score-mgr-${{ steps.vars.outputs.version }}.zip
+          draft: false
+          prerelease: false
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

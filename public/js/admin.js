@@ -11,6 +11,9 @@ const Admin = {
   groups: [],
 
   async init() {
+    // 顶部导航折叠（通用组件）
+    if (window.HeaderNav) HeaderNav.init();
+
     // 检查当前 token 角色：admin 可直接进入，否则显示"登录管理员账号"
     const role = API.getRole();
     if (role === 'admin') {
@@ -139,6 +142,25 @@ const Admin = {
     const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
     document.getElementById('reportStartDate').value = firstDay.toISOString().split('T')[0];
     document.getElementById('reportEndDate').value = now.toISOString().split('T')[0];
+
+    // 版本更新
+    document.getElementById('checkUpdateBtn')?.addEventListener('click', () => Admin.handleCheckUpdate());
+    document.getElementById('applyUpdateBtn')?.addEventListener('click', () => {
+      // 自动重启超时后，同一按钮切换为「手动重启服务」
+      if (Admin.applyBtnMode === 'restart') {
+        Admin.handleManualRestart();
+      } else {
+        Admin.handleApplyUpdate();
+      }
+    });
+    const proxyCheckbox = document.getElementById('updateUseProxy');
+    if (proxyCheckbox) {
+      proxyCheckbox.checked = Admin.getProxyPref();
+      proxyCheckbox.addEventListener('change', () => {
+        Admin.setProxyPref(proxyCheckbox.checked);
+        if (Admin.latestRelease) Admin.renderUpdateResult(Admin.latestRelease);
+      });
+    }
   },
 
   async handleUnlock() {
@@ -212,7 +234,8 @@ const Admin = {
         Admin.loadShopItems(),
         Admin.loadStudents(),
         Admin.loadGroups(),
-        Admin.loadClassInfo()
+        Admin.loadClassInfo(),
+        Admin.loadLocalVersion()
       ]);
       Admin.renderRules();
       Admin.renderShop();
@@ -968,6 +991,307 @@ const Admin = {
 
   async loadSystemInfo() {
     // 已整合到 loadStats 中
+  },
+
+  // ==================== 版本更新 ====================
+
+  latestRelease: null,
+  // 更新按钮当前模式：'apply' 一键更新 | 'restart' 手动重启
+  applyBtnMode: 'apply',
+
+  /** 读取 gh-proxy 加速下载偏好（本地保存） */
+  getProxyPref() {
+    try {
+      return localStorage.getItem('update_use_gh_proxy') === '1';
+    } catch {
+      return false;
+    }
+  },
+
+  /** 保存 gh-proxy 加速下载偏好 */
+  setProxyPref(on) {
+    try {
+      localStorage.setItem('update_use_gh_proxy', on ? '1' : '0');
+    } catch { /* 忽略隐私模式下的写入失败 */ }
+    const box = document.getElementById('updateStatusBox');
+    if (box && box.style.display !== 'none' && Admin.latestRelease) {
+      Admin.renderUpdateResult(Admin.latestRelease);
+    }
+  },
+
+  /** 拉取本地版本号 */
+  async loadLocalVersion() {
+    const el = document.getElementById('updateLocalVersion');
+    try {
+      const res = await API.getLocalVersion();
+      if (el) el.textContent = 'v' + (res.version || '0.0.0');
+    } catch (err) {
+      console.error('获取本地版本失败:', err);
+      if (el) el.textContent = '未知';
+    }
+  },
+
+  /** 设置更新状态提示 */
+  setUpdateStatus(msg, type) {
+    const box = document.getElementById('updateStatusBox');
+    if (!box) return;
+    box.style.display = msg ? 'flex' : 'none';
+    box.className = 'update-status' + (type ? ' is-' + type : '');
+    box.innerHTML = msg
+      ? `<i class="fas ${type === 'error' ? 'fa-exclamation-circle' : type === 'ok' ? 'fa-check-circle' : 'fa-circle-notch fa-spin'}"></i> ${Admin.escapeHtml(msg)}`
+      : '';
+  },
+
+  /** 检查更新 */
+  async handleCheckUpdate() {
+    const btn = document.getElementById('checkUpdateBtn');
+    if (btn) { btn.disabled = true; }
+    Admin.setUpdateStatus('正在从 GitHub 获取最新发行版...', 'loading');
+    document.getElementById('updateResultBox').style.display = 'none';
+
+    try {
+      const data = await API.getLatestRelease(true);
+      Admin.latestRelease = data;
+      Admin.renderUpdateResult(data);
+      Admin.setUpdateStatus(
+        data.hasUpdate ? `发现新版本 v${data.version}` : '当前已是最新版本',
+        'ok'
+      );
+      if (data.localVersion) {
+        const el = document.getElementById('updateLocalVersion');
+        if (el) el.textContent = 'v' + data.localVersion;
+      }
+    } catch (err) {
+      Admin.setUpdateStatus(err.message || '检查更新失败', 'error');
+    } finally {
+      if (btn) { btn.disabled = false; }
+    }
+  },
+
+  /** 渲染更新结果（随 gh-proxy 勾选状态刷新下载地址） */
+  renderUpdateResult(data) {
+    const box = document.getElementById('updateResultBox');
+    if (!box || !data) return;
+    const useProxy = Admin.getProxyPref();
+
+    document.getElementById('updateLatestVersion').textContent = 'v' + (data.version || '—');
+    const tagEl = document.getElementById('updateTag');
+    tagEl.textContent = data.hasUpdate ? '有可用更新' : '已是最新';
+    tagEl.className = 'update-tag' + (data.hasUpdate ? ' is-new' : '');
+
+    document.getElementById('updatePublishedAt').textContent = data.publishedAt
+      ? '发布于 ' + new Date(data.publishedAt).toLocaleString('zh-CN')
+      : '';
+
+    // 下载列表
+    const list = document.getElementById('updateDownloads');
+    const assets = (data.assets || []);
+    if (!assets.length) {
+      list.innerHTML = '<div class="update-asset"><div class="update-asset-info"><i class="fas fa-info-circle"></i><span>该发行版没有附带可下载文件</span></div></div>';
+    } else {
+      list.innerHTML = assets.map(a => {
+        const url = useProxy ? (a.proxyUrl || a.downloadUrl) : a.downloadUrl;
+        const size = Admin.formatSize(a.size);
+        return `
+          <div class="update-asset">
+            <div class="update-asset-info">
+              <i class="fas fa-file-archive"></i>
+              <span class="update-asset-name">${Admin.escapeHtml(a.name)}</span>
+              <span class="update-asset-size">${size}</span>
+            </div>
+            <a class="btn btn-primary" href="${Admin.escapeHtml(url)}" target="_blank" rel="noopener">
+              <i class="fas fa-download"></i> 下载
+            </a>
+          </div>`;
+      }).join('');
+    }
+
+    // 更新日志
+    const notesEl = document.getElementById('updateReleaseNotes');
+    const body = (data.body || '').trim();
+    notesEl.textContent = body || '该发行版未填写更新日志。';
+
+    // GitHub 链接
+    const link = document.getElementById('updateReleaseLink');
+    if (data.htmlUrl) {
+      link.href = data.htmlUrl;
+      link.style.display = 'inline-flex';
+    } else {
+      link.style.display = 'none';
+    }
+
+    // 一键自动更新按钮：仅在存在更新且安装包为 zip 时显示
+    const applyBtn = document.getElementById('applyUpdateBtn');
+    if (applyBtn) {
+      const hasZip = assets.some(a => /\.zip$/i.test(a.name));
+      applyBtn.style.display = (data.hasUpdate && hasZip) ? 'inline-flex' : 'none';
+      applyBtn.disabled = false;
+      applyBtn.innerHTML = '<i class="fas fa-cloud-download-alt"></i> 一键自动更新';
+      Admin.applyBtnMode = 'apply';
+    }
+
+    box.style.display = 'block';
+  },
+
+  /** 一键自动更新：下载并覆盖代码，保留 data/ */
+  handleApplyUpdate() {
+    const data = Admin.latestRelease;
+    if (!data) { Admin.setUpdateStatus('请先检查更新', 'error'); return; }
+    const asset = (data.assets || []).find(a => /\.zip$/i.test(a.name)) ||
+      (data.primaryAsset && /\.zip$/i.test(data.primaryAsset.name) ? data.primaryAsset : null);
+    if (!asset) { Admin.setUpdateStatus('该发行版没有可自动安装的 zip 包', 'error'); return; }
+
+    const from = data.localVersion || '当前版本';
+    const to = data.version || data.tag;
+    UI.confirm(
+      '自动更新',
+      `将从 GitHub 下载 <strong>${Admin.escapeHtml(asset.name)}</strong> 并覆盖当前程序文件，版本 <strong>v${Admin.escapeHtml(from)} → v${Admin.escapeHtml(to)}</strong>。<br><br>
+       <strong>不会改动 data/ 中的班级与学生数据。</strong><br>
+       依赖有变化时会自动执行 <code>npm install</code>，完成后服务会自动重启，页面稍后自动刷新。<br><br>
+       确定继续吗？`,
+      async () => { await Admin.doApplyUpdate(asset); }
+    );
+  },
+
+  /** 执行自动更新请求 */
+  async doApplyUpdate(asset) {
+    const btn = document.getElementById('applyUpdateBtn');
+    Admin.applyBtnMode = 'apply';
+    const useProxy = Admin.getProxyPref();
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> 正在更新...';
+    }
+    Admin.setUpdateStatus(
+      `正在${useProxy ? '通过 gh-proxy ' : ''}下载并安装 ${asset.name}，请勿关闭页面...`,
+      'loading'
+    );
+
+    try {
+      const res = await API.applyUpdate({ useProxy, assetName: asset.name });
+      if (!res.success) throw new Error(res.error || '自动更新失败');
+
+      // 依赖安装结果汇总
+      const npmList = res.dependenciesInstalled || [];
+      let npmText = '';
+      if (npmList.length) {
+        const okList = npmList.filter(n => n.success).map(n => n.target);
+        const badList = npmList.filter(n => !n.success).map(n => n.target);
+        if (okList.length) npmText += `，已自动安装 ${okList.join('/')} 依赖`;
+        if (badList.length) npmText += `，${badList.join('/')} 依赖安装失败需手动处理`;
+      }
+
+      Admin.setUpdateStatus(
+        `${res.message}：已覆盖 ${res.filesWritten} 个文件${npmText}，data/ 数据已保留。`,
+        res.npmFailed && res.npmFailed.length ? 'error' : 'ok'
+      );
+
+      const el = document.getElementById('updateLocalVersion');
+      if (el && res.toVersion) el.textContent = 'v' + res.toVersion;
+      Admin.latestRelease = null;
+
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-check-circle"></i> 更新完成';
+      }
+
+      // 自动重启 → 轮询等待新进程上线后刷新页面
+      if (res.needsRestart && res.autoRestart !== false) {
+        await Admin.waitForRestart(res.toVersion);
+      } else if (res.needsRestart) {
+        UI.alert(res.restartHint || '请重启后端服务使新版本生效');
+      }
+    } catch (err) {
+      Admin.setUpdateStatus(err.message || '自动更新失败', 'error');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-cloud-download-alt"></i> 重试自动更新';
+      }
+    }
+  },
+
+  /**
+   * 轮询等待后端重启完成（新进程的 startedAt 与旧的不同且版本已变更）
+   * @param {string} expectVersion 期望的新版本号
+   */
+  async waitForRestart(expectVersion) {
+    Admin.setUpdateStatus('正在重启服务，页面将在完成后自动刷新...', 'loading');
+    const maxWait = 60000;
+    const start = Date.now();
+    let sawDowntime = false;
+
+    while (Date.now() - start < maxWait) {
+      await new Promise(r => setTimeout(r, 1200));
+      try {
+        const st = await API.getUpdateStatus();
+        const versionOk = !expectVersion || st.version === expectVersion;
+        if (versionOk && (sawDowntime || !st.restartPending)) {
+          Admin.setUpdateStatus('服务已重启，页面即将刷新...', 'ok');
+          await new Promise(r => setTimeout(r, 800));
+          location.reload();
+          return;
+        }
+        if (st.restartPending) {
+          Admin.setUpdateStatus(
+            '服务正在重启，页面将在完成后自动刷新...',
+            'loading'
+          );
+        }
+      } catch {
+        // 重启瞬间请求会失败，说明旧进程已退出
+        sawDowntime = true;
+        Admin.setUpdateStatus(
+          `服务重启中（已等待 ${Math.round((Date.now() - start) / 1000)} 秒）...`,
+          'loading'
+        );
+      }
+    }
+
+    // 超时未成功 → 提供手动重启入口
+    Admin.setUpdateStatus('未能确认服务已重启，请手动重启后刷新页面', 'error');
+    const btn = document.getElementById('applyUpdateBtn');
+    if (btn) {
+      btn.style.display = 'inline-flex';
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-redo"></i> 手动重启服务';
+      Admin.applyBtnMode = 'restart';
+    }
+  },
+
+  /** 手动重启服务（自动重启失败时兜底） */
+  async handleManualRestart() {
+    const btn = document.getElementById('applyUpdateBtn');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> 正在重启...';
+    }
+    Admin.setUpdateStatus('正在重启服务...', 'loading');
+    try {
+      await API.restartServer();
+    } catch {
+      // 请求可能因进程退出而失败，这是预期的
+    }
+    await Admin.waitForRestart(null);
+  },
+
+  /** 字节数格式化 */
+  formatSize(bytes) {
+    if (!bytes || bytes <= 0) return '';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let i = 0;
+    let v = bytes;
+    while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+    return `${v.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+  },
+
+  /** HTML 转义 */
+  escapeHtml(str) {
+    return String(str == null ? '' : str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 };
 

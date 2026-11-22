@@ -287,6 +287,8 @@
 @media (max-width: 500px) {
   .voice-container { padding: 12px; }
   .voice-header { flex-direction: column; gap: 10px; text-align: center; }
+  /* 窄屏纵向排列时导航独占一行并居中，避免被 flex:1 压缩成 0 宽 */
+  .voice-header-right { flex: 0 0 auto; width: 100%; justify-content: center; }
   .mic-btn { width: 80px; height: 80px; font-size: 32px; }
   .parse-actions { flex-direction: column; }
 }

@@ -1,0 +1,418 @@
+/* ============================================================
+   全屏紧凑布局（仅 index.html 使用）
+   目标：整页不滚动，各面板内部独立滚动
+   ============================================================ */
+
+html.page-index,
+html.page-index body {
+  height: 100%;
+  overflow: hidden;
+}
+
+html.page-index body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* 主容器占满剩余高度 */
+html.page-index .app-container {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  max-width: 1800px;
+  padding: 10px 14px 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- 顶部导航 ---------- */
+html.page-index .header {
+  flex: 0 0 auto;
+  margin-bottom: 0;
+  flex-wrap: nowrap;
+  gap: 10px;
+  align-items: center;
+}
+
+html.page-index .logo {
+  font-size: 22px;
+  gap: 8px;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+html.page-index .header-controls {
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: 2px;
+  overflow: visible;
+  padding: 2px 0;
+}
+
+/* 顶部按钮：无背景的幽灵按钮 */
+html.page-index .header-controls .btn {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  font-size: 13px;
+  gap: 6px;
+  white-space: nowrap;
+  background: transparent;
+  color: var(--text);
+  box-shadow: none;
+  border-radius: var(--radius-sm);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+html.page-index .header-controls .btn:hover {
+  background: var(--light);
+  color: var(--primary);
+  transform: none;
+  box-shadow: none;
+  opacity: 1;
+}
+
+html.page-index .header-controls .btn:active { transform: none; }
+
+html.page-index .header-controls .btn i { font-size: 12px; }
+
+/* 被收纳进「更多」菜单的按钮：菜单内恢复为整行条目 */
+html.page-index .header-more-menu .btn {
+  width: 100%;
+  justify-content: flex-start;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  box-shadow: none;
+}
+
+html.page-index .header-more-menu .btn:hover {
+  background: var(--light);
+  color: var(--primary);
+  transform: none;
+  box-shadow: none;
+}
+
+html.page-index .header-more-menu .btn i {
+  width: 16px;
+  text-align: center;
+  color: var(--text-light);
+}
+
+html.page-index .header-more-menu .btn:hover i { color: var(--primary); }
+
+/* ---------- 顶部下拉菜单（导出 / 更多） ---------- */
+html.page-index .header-more {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+html.page-index .header-more[hidden] { display: none !important; }
+
+/* 被收纳到「更多」菜单里的顶部按钮 */
+html.page-index .header-controls > .header-collapsed { display: none !important; }
+
+html.page-index .header-more-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 190px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.14);
+  padding: 6px;
+  display: none;
+  z-index: 1200;
+}
+
+html.page-index .header-more.open .header-more-menu { display: block; }
+
+html.page-index .header-more-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-main);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+html.page-index .header-more-item i {
+  width: 16px;
+  text-align: center;
+  color: var(--text-light);
+}
+
+html.page-index .header-more-item:hover {
+  background: var(--light);
+  color: var(--primary);
+}
+
+html.page-index .header-more-item:hover i { color: var(--primary); }
+
+html.page-index .header-more-caret {
+  font-size: 10px;
+  margin-left: 2px;
+  transition: transform 0.2s ease;
+}
+
+html.page-index .header-more.open .header-more-caret { transform: rotate(180deg); }
+
+/* 访客模式下隐藏导出菜单（「更多」菜单仍需保留） */
+html.page-index body.guest-mode #exportMenu { display: none !important; }
+
+/* ---------- 主内容区 ---------- */
+html.page-index .main-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 14px;
+  margin-top: 10px;
+}
+
+html.page-index .left-panel,
+html.page-index .right-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+html.page-index .left-panel { flex: 2 1 0; }
+html.page-index .right-panel { flex: 1 1 0; min-width: 300px; }
+
+/* ---------- 标签页 ---------- */
+html.page-index .tabs {
+  flex: 0 0 auto;
+  border-bottom-width: 2px;
+  /* 空间不足时换行，保证文字完整显示而不是被压成省略号 */
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
+html.page-index .tab-btn {
+  /* 空间够时平均撑满；不足时保持文字完整宽度，绝不压成省略号 */
+  flex: 1 1 auto;
+  min-width: max-content;
+  padding: 9px 6px;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+html.page-index .tab-btn i { margin-right: 3px; }
+
+html.page-index .tab-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 12px;
+  overflow-y: auto;
+  animation: none;
+}
+
+/* 左侧「学生管理」：卡片撑满并内部滚动 */
+html.page-index #students.tab-content.active {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+}
+
+html.page-index #students > .card {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-bottom: 0;
+}
+
+html.page-index #students > .card > .card-header { flex: 0 0 auto; }
+
+html.page-index #students > .card > .card-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px;
+  overflow: hidden;
+}
+
+html.page-index #allStudents {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+/* 小组管理 */
+html.page-index #groupsArea { min-height: 0; }
+
+/* ---------- 卡片紧凑化 ---------- */
+html.page-index .card {
+  margin-bottom: 12px;
+  border-width: 1px;
+}
+
+html.page-index .card::before { height: 4px; }
+
+html.page-index .card-header {
+  padding: 10px 14px;
+  border-bottom-width: 1px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+html.page-index .card-title { font-size: 17px; gap: 8px; }
+
+html.page-index .card-body { padding: 12px 14px; }
+
+html.page-index .search-container { margin-bottom: 8px; }
+
+html.page-index .student-list {
+  min-height: 0;
+  padding: 10px;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+}
+
+html.page-index .student-list-controls { gap: 6px; }
+html.page-index .student-list-controls .btn {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+/* ---------- 右侧面板 ---------- */
+html.page-index .right-panel .tab-content > h3 {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+html.page-index .leaderboard-list { margin-top: 8px; }
+
+html.page-index .leaderboard-item {
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+
+html.page-index .leaderboard-avatar {
+  width: 36px;
+  height: 36px;
+  font-size: 16px;
+  margin-right: 10px;
+}
+
+html.page-index .leaderboard-rank {
+  width: 28px;
+  height: 28px;
+  font-size: 14px;
+  margin-right: 10px;
+}
+
+html.page-index .leaderboard-name { font-size: 15px; margin-bottom: 2px; }
+html.page-index .leaderboard-points { font-size: 18px; }
+
+html.page-index .rules-list {
+  max-height: none;
+  overflow: visible;
+  padding-right: 0;
+}
+
+html.page-index .rule-item { padding: 10px 12px; margin-bottom: 8px; }
+html.page-index .rule-points { font-size: 16px; margin: 0 10px; }
+
+html.page-index .shop-items {
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+
+html.page-index .shop-item { padding: 14px; }
+
+/* ---------- 底部 ---------- */
+html.page-index .app-footer {
+  flex: 0 0 auto;
+  margin-top: 0;
+  padding: 6px 12px 8px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+
+/* ---------- 水印 ---------- */
+html.page-index .author-watermark {
+  top: auto;
+  bottom: 34px;
+  right: 12px;
+  font-size: 11px;
+  padding: 3px 10px;
+}
+
+/* ---------- 小屏回退：恢复整页滚动 ---------- */
+@media (max-width: 1024px) {
+  html.page-index,
+  html.page-index body {
+    height: auto;
+    overflow: auto;
+  }
+
+  html.page-index body { display: block; }
+
+  html.page-index .app-container {
+    height: auto;
+    padding: 16px 12px;
+  }
+
+  html.page-index .header { flex-wrap: wrap; }
+
+  /* 中等宽度仍保持单行，超出部分折叠进「更多」 */
+  html.page-index .header-controls {
+    flex-wrap: nowrap;
+    overflow: visible;
+    justify-content: flex-end;
+  }
+
+  html.page-index .main-content {
+    flex-wrap: wrap;
+    height: auto;
+  }
+
+  html.page-index .left-panel,
+  html.page-index .right-panel {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  html.page-index .tab-content { overflow: visible; }
+
+  html.page-index #students.tab-content.active { overflow: visible; }
+  html.page-index #students > .card { flex: 0 0 auto; }
+
+  html.page-index #allStudents {
+    overflow: visible;
+    max-height: none;
+  }
+
+  html.page-index .author-watermark { display: none; }
+}
+
+/* ---------- 超窄屏：按钮换行显示 ---------- */
+@media (max-width: 640px) {
+  html.page-index .header-controls {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+}

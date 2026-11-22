@@ -10,6 +10,8 @@ const authRouter = require('./routes/auth');
 const dataRouter = require('./routes/data');
 const morningReadingRouter = require('./routes/morning-reading');
 const adminRouter = require('./routes/admin');
+const updateRouter = require('./routes/update');
+const runtime = require('./lib/runtime');
 const { authenticate, requireAdmin } = require('./middleware/auth');
 
 const app = express();
@@ -49,7 +51,11 @@ app.use('/api/auth', authRouter);
 
 // 健康检查
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    time: new Date().toISOString(),
+    startedAt: runtime.STARTED_AT
+  });
 });
 
 // 受保护路由（需要 JWT Token）
@@ -59,6 +65,8 @@ app.use('/api/rules', authenticate, rulesRouter);
 app.use('/api/shop', authenticate, shopRouter);
 app.use('/api/data', authenticate, dataRouter);
 app.use('/api/morning-reading', authenticate, morningReadingRouter);
+// 版本更新：查询 GitHub 最新发行版（仅管理员可见）
+app.use('/api/update', authenticate, requireAdmin, updateRouter);
 // 管理后台路由：需要 admin 角色（user / guest / 无 token 均不可访问）
 app.use('/api/admin', authenticate, requireAdmin, adminRouter);
 
@@ -81,7 +89,7 @@ app.use((err, req, res, next) => {
 // 启动服务器
 // ============================================================
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`
 ╔══════════════════════════════════════════════╗
 ║        📚 班级积分管理系统 - 后端服务        ║
@@ -94,3 +102,23 @@ app.listen(PORT, () => {
 ╚══════════════════════════════════════════════╝
   `);
 });
+
+// 端口被占用时（如自动重启瞬间的交接期）自动重试，而不是直接崩溃
+let portRetry = 0;
+server.on('error', err => {
+  if (err.code === 'EADDRINUSE' && portRetry < 12) {
+    portRetry++;
+    const wait = 800;
+    console.warn(`⚠️ 端口 ${PORT} 被占用，${wait}ms 后重试（第 ${portRetry} 次）...`);
+    setTimeout(() => {
+      server.close();
+      server.listen(PORT);
+    }, wait);
+    return;
+  }
+  console.error('❌ 服务器启动失败:', err);
+  process.exit(1);
+});
+
+// 注册实例，供自动更新后自我重启使用
+runtime.register(server);
