@@ -95,10 +95,10 @@ jobs:
             ./ "$STAGE/"
           # 生成空白数据目录占位，保证首次启动即可用
           mkdir -p "$STAGE/data"
-          cat > "$STAGE/data/README.txt" <<'EOF'
-此目录用于存放运行时数据（config.json / student.json / group.json / rule.json / shouItems.json）。
-升级时请保留该目录，不要覆盖，否则会丢失原有数据。
-EOF
+          {
+            printf '%s\n' '此目录用于存放运行时数据（config.json / student.json / group.json / rule.json / shouItems.json）。'
+            printf '%s\n' '升级时请保留该目录，不要覆盖，否则会丢失原有数据。'
+          } > "$STAGE/data/README.txt"
           cd stage
           zip -r -q "../dist/class-score-mgr-${VERSION}.zip" "class-score-mgr"
           cd ..

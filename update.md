@@ -3,6 +3,16 @@
 > 本文件既作为 GitHub Release 的更新日志，也被管理后台的「版本更新」面板读取。
 > 发布新版本时，请在文件顶部按 `## vX.Y.Z` 格式新增一节，并同步修改 `package.json` 的 `version`。
 
+## v1.0.1
+
+### 🐛 修复
+
+- 修复 GitHub Actions 发布工作流（`.github/workflows/release.yml`）的 YAML 语法错误：`data/README.txt` 的 heredoc 内容缩进不足，导致工作流文件无法被解析、发布任务直接失败。
+
+### 🎨 优化
+
+- 发布包内的 `data/README.txt` 改用 `printf` 生成，缩进统一，不再受 heredoc 缩进规则影响。
+
 ## v1.0.0
 
 ### ✨ 新增
