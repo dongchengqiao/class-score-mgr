@@ -1,0 +1,98 @@
+# ============================================================
+# electron-builder 配置（桌面版）
+#   在 electron/ 目录下执行：
+#     npm run dist        # 当前平台打包
+#     npm run dist:mac    # macOS（x64 + arm64）
+#     npm run dist:win    # Windows（x64 + arm64）
+#   真正打包前会先运行 scripts/prepare-electron-app.js 生成 stage/
+# ============================================================
+appId: com.dongchengqiao.classscore
+productName: 班级积分管理
+copyright: Copyright © 2025 dongchengqiao
+
+directories:
+  app: stage
+  output: dist
+  buildResources: build
+
+# 打包进 asar 的内容（stage 已只包含必要文件）
+files:
+  - '**/*'
+  - '!**/*.map'
+  - '!**/.DS_Store'
+
+# 依赖全部为纯 JS，无需重建原生模块
+npmRebuild: false
+nodeGypRebuild: false
+buildDependenciesFromSource: false
+
+asar: true
+# 后端需要按相对路径读取 app/ 下的文件，asar 内读取由 Electron 透明支持
+
+# 产物命名：class-score-mgr-<版本>-<架构>.<扩展名>
+artifactName: class-score-mgr-${version}-${arch}.${ext}
+
+# ---------------- Windows ----------------
+win:
+  target:
+    # 安装包（可选择安装目录、生成桌面/开始菜单快捷方式）
+    - target: nsis
+      arch:
+        - x64
+        - arm64
+    # 单文件免安装版（直接双击运行，适合放 U 盘）
+    - target: portable
+      arch:
+        - x64
+        - arm64
+  # 未配置证书时不签名，用户首次运行需允许
+  signAndEditExecutable: true
+
+portable:
+  # 单文件版命名与安装包区分：class-score-mgr-<版本>-<架构>-portable.exe
+  artifactName: class-score-mgr-${version}-${arch}-portable.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: 班级积分管理
+  artifactName: class-score-mgr-${version}-${arch}-setup.${ext}
+  deleteAppDataOnUninstall: false
+
+# ---------------- macOS ----------------
+mac:
+  category: public.app-category.education
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
+  # 无签名证书时跳过签名（arm64 会由 electron-builder 做 ad-hoc 签名以便本机运行）
+  identity: null
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  darkModeSupport: true
+
+dmg:
+  title: 班级积分管理 ${version}
+
+# ---------------- Linux（可选，未在 CI 构建） ----------------
+linux:
+  target:
+    - AppImage
+  category: Education
+
+# ---------------- 自动更新 ----------------
+# App 版通过 electron-updater 读取同一 Release 中的 latest.yml / latest-mac.yml
+publish:
+  provider: github
+  owner: dongchengqiao
+  repo: class-score-mgr
+  releaseType: release

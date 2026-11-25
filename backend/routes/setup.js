@@ -162,6 +162,72 @@ router.post('/complete', async (req, res) => {
   }
 });
 
+// ==================== POST /import ====================
+
+/**
+ * 导入已有备份数据（仅初始化向导阶段可用）
+ * 请求体：{ data: <备份 JSON>, className?, port? }
+ * 成功后标记初始化完成，返回数据摘要
+ */
+router.post('/import', async (req, res) => {
+  try {
+    // 已完成初始化的系统不允许走这个公开接口（避免绕过鉴权覆盖数据）
+    if (!setupState.needsSetup()) {
+      return res.status(403).json({ error: '系统已完成初始化，请在管理页使用「导入数据」' });
+    }
+
+    const body = req.body || {};
+    const importData = body.data || body;
+    if (!importData || typeof importData !== 'object' || Array.isArray(importData)) {
+      return res.status(400).json({ error: '导入内容不是有效的备份数据' });
+    }
+    if (!Array.isArray(importData.students) && !Array.isArray(importData.groups)
+      && !importData.rules && !Array.isArray(importData.shopItems)) {
+      return res.status(400).json({ error: '备份文件中没有可导入的数据（需含 students / groups / rules / shopItems）' });
+    }
+
+    // 端口：优先使用请求中指定，其次沿用备份中的配置
+    const port = body.port !== undefined && body.port !== ''
+      ? validatePort(body.port)
+      : (importData.settings && validatePort(importData.settings.port)) || setupState.DEFAULT_PORT;
+    if (port === null) {
+      return res.status(400).json({ error: `端口需在 ${MIN_PORT} ~ ${MAX_PORT} 之间` });
+    }
+    const portChanged = port !== setupState.readPort();
+
+    DB.importAll(importData);
+
+    // 导入后写入本机初始化信息（备份中的密码哈希不会被覆盖）
+    if (body.className && String(body.className).trim()) {
+      DB.setSetting('class_name', String(body.className).trim());
+    }
+    DB.setSetting('port', port);
+    DB.setSetting('setup_completed', true);
+    DB.setSetting('setup_completed_at', new Date().toISOString());
+
+    setupState.markCompleted();
+
+    const summary = {
+      port,
+      portChanged,
+      students: DB.getStudents().length,
+      groups: DB.getGroups().length,
+      rules: DB.getRules().length,
+      shopItems: DB.getShopItems().length,
+      hasPassword: !!DB.getSetting('app_password_hash')
+    };
+
+    if (!portChanged) {
+      return res.json({ success: true, restarted: false, ...summary });
+    }
+    res.json({ success: true, restarted: true, ...summary });
+    runtime.restart(900, { port }).catch(err => console.error('导入数据后重启失败:', err));
+  } catch (err) {
+    console.error('导入数据失败:', err);
+    res.status(500).json({ error: '导入失败: ' + (err.message || '未知错误') });
+  }
+});
+
 // ==================== POST /reset-port ====================
 
 router.post('/reset-port', (req, res) => {

@@ -9,3 +9,6 @@ class-data.json.bak
 uploads
 /tests
 /logs
+/electron/node_modules
+/electron/stage
+/electron/dist

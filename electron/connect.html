@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- CSP：只允许本地脚本与内联样式（此页无外部资源） -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:;">
+  <title>选择运行方式 · 班级积分管理</title>
+  <style>
+    :root {
+      --primary: #ff6b6b;
+      --accent: #4ecdc4;
+      --accent2: #26a69a;
+      --text: #2c3e50;
+      --text-light: #7f8c8d;
+      --bg: #f6f7fb;
+      --card: #ffffff;
+      --border: #e6e9f0;
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 20px;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    .wrap { width: 100%; max-width: 880px; }
+    .head { text-align: center; margin-bottom: 28px; }
+    .logo {
+      width: 72px; height: 72px; margin: 0 auto 14px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 34px;
+      box-shadow: 0 10px 26px rgba(255, 107, 107, .28);
+    }
+    h1 { font-size: 24px; font-weight: 700; letter-spacing: .5px; }
+    .sub { margin-top: 8px; font-size: 14px; color: var(--text-light); line-height: 1.7; }
+
+    .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+    }
+    .card:hover { transform: translateY(-3px); box-shadow: 0 14px 30px rgba(44, 62, 80, .1); border-color: #d6dce8; }
+    .card-ico {
+      width: 46px; height: 46px; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; margin-bottom: 14px;
+    }
+    .card-ico.off { background: rgba(78, 205, 196, .16); color: var(--accent2); }
+    .card-ico.rem { background: rgba(255, 107, 107, .14); color: var(--primary); }
+    .card h2 { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+    .card p { font-size: 13px; line-height: 1.75; color: var(--text-light); flex: 1; }
+    .card .note {
+      margin-top: 12px; font-size: 12px; color: var(--text-light);
+      background: #f8f9fc; border-radius: 10px; padding: 8px 10px; line-height: 1.65;
+      word-break: break-all;
+    }
+    .btn {
+      margin-top: 16px;
+      border: none; cursor: pointer;
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 14px; font-weight: 600;
+      font-family: inherit;
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      transition: filter .16s ease, transform .16s ease;
+    }
+    .btn:active { transform: scale(.985); }
+    .btn:disabled { opacity: .6; cursor: not-allowed; }
+    .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; }
+    .btn-primary:hover:not(:disabled) { filter: brightness(1.06); }
+    .btn-ghost { background: var(--primary); color: #fff; }
+    .btn-ghost:hover:not(:disabled) { filter: brightness(1.06); }
+
+    .input {
+      width: 100%; margin-top: 12px;
+      padding: 11px 13px;
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      font-size: 13px;
+      font-family: inherit;
+      color: var(--text);
+      outline: none;
+      transition: border-color .16s ease, box-shadow .16s ease;
+    }
+    .input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(78, 205, 196, .18); }
+
+    .err {
+      margin-top: 12px;
+      font-size: 12.5px;
+      color: var(--primary);
+      display: none;
+      line-height: 1.6;
+    }
+    .err.show { display: block; }
+
+    .foot {
+      margin-top: 24px; text-align: center;
+      font-size: 12px; color: var(--text-light); line-height: 1.8;
+    }
+    .foot b { color: var(--text); font-weight: 600; }
+
+    .busy {
+      position: fixed; inset: 0;
+      background: rgba(246, 247, 251, .86);
+      display: none;
+      align-items: center; justify-content: center;
+      flex-direction: column; gap: 14px;
+      z-index: 20;
+    }
+    .busy.show { display: flex; }
+    .spinner {
+      width: 40px; height: 40px; border-radius: 50%;
+      border: 3px solid #e3e7ef;
+      border-top-color: var(--accent);
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .busy-text { font-size: 13.5px; color: var(--text-light); }
+
+    @media (max-width: 720px) {
+      .cards { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="head">
+      <div class="logo">📚</div>
+      <h1>班级积分管理 · 桌面版</h1>
+      <p class="sub">首次使用请选择运行方式：<br>可以完全离线在本机使用，也可以连接教室里已经在运行的服务器。</p>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-ico off">💾</div>
+        <h2>离线使用</h2>
+        <p>在本机启动内置服务，数据保存在这台电脑上。<br>无需网络，适合单机使用或作为主服务器。</p>
+        <div class="note" id="offlineNote">数据目录：<span id="dataDir">读取中…</span></div>
+        <button class="btn btn-primary" id="btnOffline">
+          <span>进入离线模式</span>
+        </button>
+      </div>
+
+      <div class="card">
+        <div class="card-ico rem">🌐</div>
+        <h2>连接已有服务器</h2>
+        <p>如果老师机或其他设备上已经在运行积分服务，填入它的地址即可直接使用同一份数据。</p>
+        <input class="input" id="remoteUrl" type="text" spellcheck="false"
+               placeholder="http://192.168.1.10:4000">
+        <button class="btn btn-ghost" id="btnRemote">连接服务器</button>
+        <div class="err" id="remoteErr"></div>
+      </div>
+    </div>
+
+    <div class="foot">
+      版本 <b id="appVersion">—</b> · <span id="platformName">—</span><br>
+      之后可通过菜单「文件 → 切换运行方式」随时更改
+    </div>
+  </div>
+
+  <div class="busy" id="busy">
+    <div class="spinner"></div>
+    <div class="busy-text" id="busyText">正在启动，请稍候…</div>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const API = window.Desktop || null;
+
+    function setBusy(on, text) {
+      $('busy').classList.toggle('show', !!on);
+      if (text) $('busyText').textContent = text;
+    }
+
+    function showError(msg) {
+      const el = $('remoteErr');
+      el.textContent = msg || '';
+      el.classList.toggle('show', !!msg);
+    }
+
+    async function init() {
+      if (!API) {
+        showError('桌面能力不可用：请在 App 内打开此页面。');
+        $('btnOffline').disabled = true;
+        $('btnRemote').disabled = true;
+        return;
+      }
+      try {
+        const info = await API.getConfig();
+        $('appVersion').textContent = 'v' + (info.version || '—');
+        $('platformName').textContent = {
+          darwin: 'macOS', win32: 'Windows', linux: 'Linux'
+        }[info.platform] || info.platform || '—';
+        if (info.dataDir) $('dataDir').textContent = info.dataDir;
+        // 记住上次连接的服务器地址，方便再次输入
+        if (info.config && info.config.serverUrl) $('remoteUrl').value = info.config.serverUrl;
+      } catch (err) {
+        showError('读取桌面配置失败：' + (err.message || err));
+      }
+    }
+
+    $('btnOffline').addEventListener('click', async () => {
+      showError('');
+      setBusy(true, '正在启动内置服务，首次启动需要几秒钟…');
+      try {
+        const res = await API.startOffline();
+        if (!res || !res.ok) {
+          setBusy(false);
+          showError((res && res.error) || '启动失败，请重试');
+          return;
+        }
+        // 主进程已在窗口中加载业务页面，本页即将被替换，无需关闭遮罩
+      } catch (err) {
+        setBusy(false);
+        showError('启动失败：' + (err.message || err));
+      }
+    });
+
+    $('remoteUrl').addEventListener('input', () => showError(''));
+    $('remoteUrl').addEventListener('keydown', e => {
+      if (e.key === 'Enter') $('btnRemote').click();
+    });
+
+    $('btnRemote').addEventListener('click', async () => {
+      const url = $('remoteUrl').value.trim();
+      if (!url) { showError('请填写服务器地址'); return; }
+      showError('');
+      setBusy(true, '正在连接服务器…');
+      try {
+        const res = await API.connectRemote(url);
+        if (!res || !res.ok) {
+          setBusy(false);
+          showError((res && res.error) || '连接失败，请检查地址与服务状态');
+          return;
+        }
+      } catch (err) {
+        setBusy(false);
+        showError('连接失败：' + (err.message || err));
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>

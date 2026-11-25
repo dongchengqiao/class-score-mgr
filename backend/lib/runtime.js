@@ -15,7 +15,8 @@ const STARTED_AT = new Date().toISOString();
 const BACKEND_DIR = path.join(__dirname, '..');
 const SERVER_ENTRY = path.join(BACKEND_DIR, 'server.js');
 // 脱离终端时的日志文件（终端关闭后仍可查看输出）
-const LOG_DIR = path.join(BACKEND_DIR, '..', 'logs');
+// 目录可由环境变量 CSM_LOG_DIR 覆盖（Electron 打包后写到用户目录）
+const LOG_DIR = process.env.CSM_LOG_DIR || path.join(BACKEND_DIR, '..', 'logs');
 const LOG_FILE = path.join(LOG_DIR, 'server.log');
 
 // 是否让新进程沿用当前终端窗口（默认开启；CSM_TERMINAL=0 可关闭，改为写日志文件）
@@ -24,7 +25,21 @@ const PREFER_TERMINAL = process.env.CSM_TERMINAL !== '0';
 const HAS_TTY = !!(process.stdout && process.stdout.isTTY);
 const TERMINAL_INHERIT = PREFER_TERMINAL && HAS_TTY;
 
+// 桌面版（Electron）：打包后没有独立的 node 可执行文件，
+// 用 Electron 自身的二进制以「纯 Node」模式运行后端。
+const DESKTOP = process.env.CSM_DESKTOP === '1';
+
 let server = null;
+
+// 桌面版（Electron）重启钩子：由 App 主进程注册。
+// 桌面版服务运行在 App 主进程内，不能 spawn 新进程再 exit（会连窗口一起退出），
+// 因此改为「关闭监听 → 用新端口重新监听」，并通知 App 更新窗口地址。
+let desktopRestartHandler = null;
+
+/** 桌面版注册重启回调（port 变化时由 App 刷新窗口地址） */
+function setDesktopRestartHandler(fn) {
+  desktopRestartHandler = typeof fn === 'function' ? fn : null;
+}
 
 /** 注册正在监听的 HTTP Server 实例 */
 function register(srv) {
@@ -68,6 +83,9 @@ function spawnNewProcess(port, mode = 'auto') {
     }
   }
 
+  // 桌面版打包后没有独立 node，改用 Electron 二进制以纯 Node 模式运行后端
+  if (DESKTOP) env.ELECTRON_RUN_AS_NODE = '1';
+
   const child = spawn(process.execPath, [SERVER_ENTRY], {
     cwd: BACKEND_DIR,
     detached: true,
@@ -89,6 +107,12 @@ function spawnNewProcess(port, mode = 'auto') {
  */
 function restart(delay = 600, options = {}) {
   const port = Number.isFinite(options && options.port) ? options.port : null;
+
+  // 桌面版：进程不能退出，改为原地重新监听
+  if (desktopRestartHandler) {
+    return Promise.resolve(desktopRestartHandler(port, delay));
+  }
+
   return new Promise(resolve => {
     setTimeout(() => {
       let spawned = false;
@@ -152,4 +176,4 @@ function restart(delay = 600, options = {}) {
   });
 }
 
-module.exports = { STARTED_AT, register, restart };
+module.exports = { STARTED_AT, register, restart, setDesktopRestartHandler };

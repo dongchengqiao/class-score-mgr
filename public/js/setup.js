@@ -354,6 +354,121 @@
     Setup.restarting = false;
   }
 
+  // ==================== 导入已有备份 ====================
+
+  /** 备份文件的解析结果 */
+  let importPayload = null;
+
+  function showImportError(message) {
+    const el = $('setupImportError');
+    if (!el) return;
+    if (message) { el.textContent = message; el.classList.add('show'); }
+    else { el.textContent = ''; el.classList.remove('show'); }
+  }
+
+  /** 校验备份数据结构并给出摘要 */
+  function describeBackup(data) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new Error('文件内容不是有效的备份数据（应为 JSON 对象）');
+    }
+    const counts = {
+      students: Array.isArray(data.students) ? data.students.length : 0,
+      groups: Array.isArray(data.groups) ? data.groups.length : 0,
+      rules: Array.isArray(data.rules)
+        ? data.rules.length
+        : ((data.rules && Array.isArray(data.rules.add)) ? data.rules.add.length : 0)
+          + ((data.rules && Array.isArray(data.rules.minus)) ? data.rules.minus.length : 0),
+      shopItems: Array.isArray(data.shopItems) ? data.shopItems.length : 0
+    };
+    if (!counts.students && !counts.groups && !counts.rules && !counts.shopItems) {
+      throw new Error('备份文件里没有可导入的数据（学生 / 小组 / 规则 / 商品均为空）');
+    }
+    return counts;
+  }
+
+  function bindImport() {
+    const pickBtn = $('setupImportPick');
+    const fileInput = $('setupImportFile');
+    const importBtn = $('setupImportBtn');
+    const nameEl = $('setupImportName');
+
+    if (pickBtn && fileInput) {
+      pickBtn.addEventListener('click', () => fileInput.click());
+    }
+
+    if (fileInput) {
+      fileInput.addEventListener('change', async () => {
+        showImportError('');
+        importPayload = null;
+        if (importBtn) importBtn.disabled = true;
+
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) {
+          if (nameEl) { nameEl.textContent = '未选择文件'; nameEl.classList.remove('picked'); }
+          return;
+        }
+        if (nameEl) { nameEl.textContent = file.name; nameEl.classList.add('picked'); }
+
+        try {
+          const text = await file.text();
+          const data = JSON.parse(text);
+          const counts = describeBackup(data);
+          importPayload = data;
+          if (nameEl) {
+            nameEl.textContent = `${file.name} · 学生 ${counts.students} / 小组 ${counts.groups} / 规则 ${counts.rules} / 商品 ${counts.shopItems}`;
+          }
+          if (importBtn) importBtn.disabled = false;
+        } catch (err) {
+          showImportError(err.message || '无法解析该文件');
+        }
+      });
+    }
+
+    if (importBtn) {
+      importBtn.addEventListener('click', async () => {
+        if (!importPayload) { showImportError('请先选择一个有效的备份文件'); return; }
+        showImportError('');
+
+        const className = ($('setupClassName') && $('setupClassName').value.trim()) || '';
+        const rawPort = ($('setupPort') && $('setupPort').value.trim()) || '';
+        const port = rawPort === '' ? null : parseInt(rawPort, 10);
+        if (port !== null && (!Number.isFinite(port) || port < 1024 || port > 65535)) {
+          showImportError('端口需为 1024 ~ 65535 之间的整数');
+          return;
+        }
+
+        importBtn.disabled = true;
+        const original = importBtn.innerHTML;
+        importBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 导入中…';
+
+        try {
+          const res = await fetch('/api/setup/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: importPayload, className, port })
+          });
+          const result = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(result.error || `导入失败（HTTP ${res.status}）`);
+
+          renderSummary(result);
+          goStep('done');
+          if ($('setupDoneDesc')) {
+            $('setupDoneDesc').textContent = '备份数据已导入，历史记录与积分均已恢复。';
+          }
+          if (result.portChanged) {
+            await waitForRestart(result.port);
+          } else {
+            markReady(result.port);
+          }
+        } catch (err) {
+          showImportError(err.message || '导入失败，请重试');
+          importBtn.disabled = false;
+          importBtn.innerHTML = original;
+        }
+      });
+    }
+  }
+
   // ==================== 事件绑定 ====================
 
   function bindEvents() {
@@ -418,6 +533,9 @@
       refreshShopPreview();
       submit();
     });
+
+    // 导入已有备份
+    bindImport();
 
     // 离开提醒
     window.addEventListener('beforeunload', e => {

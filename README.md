@@ -14,6 +14,9 @@
 | 👥 小组管理 | 分组、组内积分操作、小组一周积分详情导出 |
 | 📊 管理后台 | 系统统计（人数/积分/规则/历史）、密码管理、数据导入导出、Excel 报表、小组管理、规则管理 |
 | 🔐 权限控制 | 三级权限：管理员 / 用户（可加减分）/ 访客（只读），JWT 7 天有效 |
+| ⚡ 实时同步 | 通过 WebSocket（`/ws`）推送变更，多端页面自动刷新，无需手动重载 |
+| 🧾 运行日志 | 结构化日志写入 `logs/app.log`（时间 / IP / 操作 / 详情），支持后台接口查看 |
+| 💻 桌面版 | Electron App，可离线使用（内置服务）也可连接已有服务器，支持自动更新 |
 
 ## 🚀 快速启动
 
@@ -44,6 +47,12 @@ npm start
 ├── backend/                  # 后端服务
 │   ├── server.js             # Express 入口（端口 4000）
 │   ├── json-db.js            # JSON 数据引擎（存储/迁移/CRUD）
+│   ├── lib/
+│   │   ├── logger.js         # 结构化日志（时间/IP/操作/详情，5MB 轮转）
+│   │   ├── realtime.js       # WebSocket 实时推送（/ws，心跳 + 写操作广播）
+│   │   ├── runtime.js        # 重启逻辑（Web 版重启进程 / 桌面版原地重启）
+│   │   ├── setup-state.js    # 初始化状态（needsSetup / 版本 / 数据目录）
+│   │   └── log-tee.js        # 终端输出与日志文件同步
 │   ├── middleware/
 │   │   └── auth.js           # JWT 认证中间件（admin/user/guest 三角色）
 │   ├── routes/
@@ -54,7 +63,8 @@ npm start
 │   │   ├── shop.js           # 积分商城
 │   │   ├── data.js           # 数据导入导出 / Excel 报表
 │   │   ├── morning-reading.js# 早读加分
-│   │   └── admin.js          # 统计 / 设置
+│   │   ├── setup.js          # 初始化向导 + 向导页数据导入
+│   │   └── admin.js          # 统计 / 设置 / 端口 / 运行日志
 ├── data/                     # 数据目录（项目根目录，已被 .gitignore 忽略，不纳入版本管理）
 │   ├── config.json           # 设置（settings）+ 自增序列（_sequences）
 │   ├── student.json          # 学生（students，含各自 history）
@@ -73,12 +83,22 @@ npm start
 │   ├── js/
 │   │   ├── api.js            # API 客户端（封装 fetch + token）
 │   │   ├── app.js            # 主页面逻辑
+│   │   ├── realtime.js       # WebSocket 客户端（自动重连 + 状态指示）
 │   │   ├── voice.js          # 语音识别 + 姓名匹配引擎
 │   │   ├── zaodu.js          # 早读加分逻辑
+│   │   ├── setup.js          # 初始化向导逻辑（含导入数据）
 │   │   ├── admin.js          # 管理后台逻辑
 │   │   └── ui.js / features.js
 │   └── uploads/              # 头像上传目录
-├── package.json              # 根脚本（install:all / start / dev）
+├── electron/                 # 桌面版（Electron）
+│   ├── main.js               # 主进程：启动内置服务 / 连接服务器 / 自动更新 / 菜单
+│   ├── preload.js            # 预加载脚本（contextBridge 暴露 desktop API）
+│   ├── connect.html          # 「选择运行方式」页面（离线 / 连接已有服务器）
+│   ├── electron-builder.yml  # 打包配置（Win x64+ARM 安装包/单文件、macOS x64+ARM）
+│   └── stage/                # 打包用临时目录（由脚本生成，已 .gitignore）
+├── scripts/
+│   └── prepare-electron-app.js # 生成 electron/stage（复制前后端 + 安装运行时依赖）
+├── package.json              # 根脚本（install:all / start / dev / desktop:*）
 └── start.sh                  # 一键启动脚本
 ```
 
@@ -179,12 +199,61 @@ npm start
 ## 🛠️ 开发命令
 
 ```bash
-npm run dev       # 后端热重载（node --watch）
+npm run dev          # 后端热重载（node --watch）
 npm run install:all  # 安装后端依赖
+
+# 桌面版
+npm run desktop:prepare   # 生成 electron/stage（含前后端与运行时依赖）
+npm run desktop:start     # 本地运行桌面版
+npm run desktop:dist      # 打包当前平台
+npm run desktop:dist:mac  # 打包 macOS（x64 + arm64）
+npm run desktop:dist:win  # 打包 Windows（x64 + arm64）
 ```
+
+## ⚡ 实时同步与运行日志
+
+- **WebSocket**：服务端在 `/ws` 提供长连接（30 秒心跳、断线自动重连）。任一客户端写入成功后，服务端广播 `{resource, action, by}`，主页 / 管理后台 / 早读页收到后自动刷新对应数据，右上角状态灯显示连接状态。
+- **运行日志**：`logs/app.log` 每行包含日期时间、级别、执行 IP、中文操作名与详情，超过 5MB 自动轮转为 `app.log.1`。
+- **查看日志**：管理员可调用 `GET /api/admin/logs?lines=200` 拉取最近日志行。
+
+## 💻 桌面版（Electron）
+
+桌面版首次启动会显示「选择运行方式」页面：
+
+| 模式 | 说明 |
+|------|------|
+| **离线使用** | App 自带内置服务，数据保存在系统应用数据目录，无需安装 Node.js 或单独服务器 |
+| **连接已有服务器** | 填写已有服务地址（如 `http://192.168.1.10:4000`）作为客户端使用，与网页版共享同一份数据 |
+
+- 运行中可通过菜单 **文件 → 切换运行方式**（`Cmd/Ctrl + Shift + M`）随时切换模式。
+- 离线模式下可在管理后台修改端口，服务会在 **同一进程内原地重启**，窗口自动跳转新端口，App 不会退出。
+- **自动更新**：内置 `electron-updater`，菜单「帮助 → 检查更新」或启动后静默检查，下载完成后可立即安装。
+- 默认端口若被占用，会自动向后寻找空闲端口。
+
+### 桌面版数据与日志位置
+
+| 系统 | 数据目录 |
+|------|----------|
+| macOS | `~/Library/Application Support/班级积分管理/` |
+| Windows | `%APPDATA%\班级积分管理\` |
+
+其中 `data/` 为业务数据（含 `uploads/` 头像），`logs/` 为运行日志，`desktop-config.json` 记录当前运行方式。
+
+### 环境变量
+
+| 变量 | 说明 | 默认 |
+|------|------|------|
+| `PORT` | 服务监听端口 | `4000`（`data/config.json` 的 `port` 优先于默认值） |
+| `CSM_DATA_DIR` | 数据目录 | `<项目根>/data` |
+| `CSM_LOG_DIR` | 日志目录 | `<项目根>/logs` |
+| `CSM_UPLOADS_DIR` | 头像上传目录 | `<数据目录>/uploads` |
+| `CSM_APP_ROOT` | 应用根目录（读取 `public/`、`package.json`） | 自动推断 |
+| `CSM_DESKTOP` | 设为 `1` 表示桌面版（原地重启、写 PID 文件） | 未设置 |
+| `CSM_TERMINAL` | 设为 `0` 关闭重启时沿用终端 | 沿用终端 |
 
 ## 📌 注意事项
 
 - 语音识别需使用 **Chrome / Edge** 浏览器（Web Speech API）
-- 前后端端口固定 4000，可通过环境变量 `PORT` 修改
+- 前后端默认端口 4000，可通过环境变量 `PORT` 或管理后台的「服务端口」修改
+- 桌面版未签名，首次打开需在系统设置中允许运行（macOS：右键「打开」；Windows：SmartScreen「仍要运行」）
 - 备份数据只需拷贝整个 `data/` 目录（或其中的 `config.json` / `student.json` / `group.json` / `rule.json` / `shouItems.json`）

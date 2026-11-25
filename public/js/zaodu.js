@@ -288,6 +288,15 @@ async function initSystem() {
   currentOrderIds = getPinyinSortedIds();
   renderCards();
   bindGlobalButtons();
+  // 启用 WebSocket 实时同步：主站加分后早读页分数同步更新
+  if (window.Realtime) {
+    Realtime.connect();
+    document.addEventListener('realtime:update', async () => {
+      await loadStudents();
+      await loadScores();
+      renderCards();
+    });
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {

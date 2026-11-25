@@ -74,6 +74,31 @@
 
         <div class="setup-error" id="setupError1"></div>
 
+        <!-- ======= 导入已有备份 ======= -->
+        <div class="import-box" id="setupImportBox">
+          <div class="import-box-head">
+            <i class="fas fa-file-import"></i>
+            <div>
+              <div class="import-box-title">已有备份数据？直接导入</div>
+              <div class="import-box-desc">
+                选择之前导出的 <code>.json</code> 备份文件，可一次性恢复学生、小组、规则、商品与历史记录，
+                并跳过后续所有步骤。导入不会覆盖本机的登录密码。
+              </div>
+            </div>
+          </div>
+          <div class="import-box-actions">
+            <input type="file" id="setupImportFile" accept=".json,application/json" hidden>
+            <button type="button" class="btn-ghost" id="setupImportPick">
+              <i class="fas fa-folder-open"></i> 选择备份文件
+            </button>
+            <span class="import-file-name" id="setupImportName">未选择文件</span>
+            <button type="button" class="btn-setup" id="setupImportBtn" disabled>
+              <i class="fas fa-upload"></i> 导入并完成初始化
+            </button>
+          </div>
+          <div class="setup-error" id="setupImportError"></div>
+        </div>
+
         <div class="setup-footer">
           <span></span>
           <div class="footer-right">

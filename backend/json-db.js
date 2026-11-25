@@ -10,7 +10,11 @@
 const fs = require('fs');
 const path = require('path');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
+// 数据目录：默认项目根目录下的 data/，可由环境变量 CSM_DATA_DIR 覆盖
+// （Electron 离线版需要把数据写在用户可写的 userData 目录）
+const DATA_DIR = process.env.CSM_DATA_DIR
+  ? path.resolve(process.env.CSM_DATA_DIR)
+  : path.join(__dirname, '..', 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 // 各实体对应的存储文件
@@ -880,8 +884,15 @@ const DB = {
     }
 
     // 导入设置：若导入数据未提供 settings，则保留原有设置（避免清空密码等）
+    // 即使提供了 settings，也始终保留本机的密码哈希与初始化标记：
+    // 备份文件不包含密码（导出时已剔除），若直接覆盖会导致导入后无法登录。
+    const KEEP_SETTINGS = ['app_password_hash', 'user_password_hash', 'setup_completed', 'setup_completed_at', 'port'];
     if (importData.settings && typeof importData.settings === 'object') {
-      data.settings = JSON.parse(JSON.stringify(importData.settings));
+      const merged = JSON.parse(JSON.stringify(importData.settings));
+      for (const key of KEEP_SETTINGS) {
+        if (preservedSettings[key] !== undefined) merged[key] = preservedSettings[key];
+      }
+      data.settings = merged;
     } else {
       data.settings = preservedSettings;
     }
@@ -918,6 +929,7 @@ const DB = {
 };
 
 DB.flush = flush;
+DB.DATA_DIR = DATA_DIR;
 DB.RULE_TYPES = RULE_TYPES;
 DB.DEFAULT_PRESETS = DEFAULT_PRESETS;
 module.exports = DB;

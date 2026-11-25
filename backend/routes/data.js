@@ -23,13 +23,19 @@ router.get('/settings', (req, res) => {
 router.get('/export', (req, res) => {
   try {
     const exported = DB.exportAll();
+    // 设置中的密码哈希不写入导出文件（避免分发备份时泄露）
+    const settings = { ...(exported.settings || {}) };
+    for (const key of ['app_password_hash', 'user_password_hash', 'setup_completed', 'setup_completed_at']) {
+      delete settings[key];
+    }
     res.json({
       exportDate: nowISO(),
       students: exported.students,
       groups: exported.groups,
       rules: exported.rules,
       shopItems: exported.shopItems,
-      history: exported.history
+      settings,
+      _sequences: exported._sequences
     });
   } catch (err) {
     console.error('GET /api/data/export error:', err);

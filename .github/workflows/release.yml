@@ -16,9 +16,15 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    name: 构建并发布发行版
+  # ----------------------------------------------------------
+  # 1) 解析版本标签 + 生成 Release 说明（供后续 job 共用）
+  # ----------------------------------------------------------
+  version:
+    name: 解析版本与更新日志
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.vars.outputs.tag }}
+      version: ${{ steps.vars.outputs.version }}
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -69,17 +75,57 @@ jobs:
             echo ""
             echo "---"
             echo ""
-            echo "**安装方式**：下载下方 zip 包，解压后覆盖到原程序目录（保留原有 \`data/\` 数据目录），然后重启服务：\`./start.sh\`。"
+            echo "### 服务器版（zip）"
+            echo ""
+            echo "下载下方 \`class-score-mgr-<版本>.zip\`，解压后覆盖到原程序目录（保留原有 \`data/\` 数据目录），然后重启服务：\`./start.sh\`。"
+            echo ""
+            echo "### 桌面版（App）"
+            echo ""
+            echo "| 平台 | 文件 | 说明 |"
+            echo "|------|------|------|"
+            echo "| Windows x64 | \`*-x64-setup.exe\` | 安装版，支持自动更新 |"
+            echo "| Windows ARM64 | \`*-arm64-setup.exe\` | 适用于骁龙等 ARM 设备 |"
+            echo "| Windows x64 单文件 | \`*-x64-portable.exe\` | 免安装，双击即用，适合放 U 盘 |"
+            echo "| Windows ARM64 单文件 | \`*-arm64-portable.exe\` | 免安装，适用于 ARM 设备 |"
+            echo "| macOS Intel | \`*-x64.dmg\` / \`*-x64.zip\` | Intel 芯片 Mac |"
+            echo "| macOS Apple Silicon | \`*-arm64.dmg\` / \`*-arm64.zip\` | M 系列芯片 Mac |"
+            echo ""
+            echo "桌面版首次启动可选择「离线使用」（内置服务，数据保存在本机）或「连接已有服务器」。"
             echo ""
             echo "📖 [查看完整更新日志](${{ github.server_url }}/${{ github.repository }}/blob/${{ steps.vars.outputs.tag }}/update.md)"
           } >> release_notes.md
           echo "--- 更新日志预览 ---"
           cat release_notes.md
 
+      - name: 保存更新日志
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: release_notes.md
+          retention-days: 3
+
+  # ----------------------------------------------------------
+  # 2) 服务器版（原 zip 包）
+  # ----------------------------------------------------------
+  release:
+    name: 构建并发布服务器版
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 取回更新日志
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+
       - name: 打包发布产物
         run: |
           set -euo pipefail
-          VERSION="${{ steps.vars.outputs.version }}"
+          VERSION="${{ needs.version.outputs.version }}"
           STAGE="stage/class-score-mgr"
           mkdir -p "$STAGE" dist
           # 只打包运行所需内容，排除依赖、版本库、运行时数据与开发文件
@@ -88,6 +134,8 @@ jobs:
             --exclude='.github' \
             --exclude='backend/node_modules' \
             --exclude='node_modules' \
+            --exclude='electron' \
+            --exclude='scripts' \
             --exclude='data' \
             --exclude='nogit' \
             --exclude='tests' \
@@ -109,12 +157,86 @@ jobs:
       - name: 创建 GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.vars.outputs.tag }}
-          name: ${{ steps.vars.outputs.tag }}
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: ${{ needs.version.outputs.tag }}
           body_path: release_notes.md
-          files: dist/class-score-mgr-${{ steps.vars.outputs.version }}.zip
+          files: dist/class-score-mgr-${{ needs.version.outputs.version }}.zip
           draft: false
           prerelease: false
           generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ----------------------------------------------------------
+  # 3) 桌面版（Electron）：Windows x64/ARM64 + macOS x64/ARM64
+  #    每个平台一次构建两种架构，保证 latest*.yml 只有一份
+  # ----------------------------------------------------------
+  desktop:
+    name: 桌面版 · ${{ matrix.label }}
+    needs: [version, release]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: Windows x64 + ARM64
+            platform: win
+            archs: '--x64 --arm64'
+          - os: macos-14
+            label: macOS x64 + ARM64
+            platform: mac
+            archs: '--x64 --arm64'
+    env:
+      # 不联网查找签名证书，避免未配置签名时构建失败
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 配置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 取回更新日志
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+
+      - name: 安装后端依赖
+        working-directory: backend
+        run: npm install --no-audit --no-fund
+
+      - name: 安装桌面版依赖
+        working-directory: electron
+        run: npm install --no-audit --no-fund
+
+      - name: 准备打包目录（stage）
+        run: node scripts/prepare-electron-app.js
+
+      - name: 构建桌面版安装包
+        working-directory: electron
+        run: npx electron-builder --config electron-builder.yml --${{ matrix.platform }} ${{ matrix.archs }} --publish never
+
+      - name: 列出产物
+        shell: bash
+        run: ls -lh electron/dist/
+
+      - name: 发布桌面版产物
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: ${{ needs.version.outputs.tag }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+          generate_release_notes: false
+          files: |
+            electron/dist/*.exe
+            electron/dist/*.dmg
+            electron/dist/*.zip
+            electron/dist/*.blockmap
+            electron/dist/latest*.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

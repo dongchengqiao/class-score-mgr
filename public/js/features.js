@@ -375,11 +375,15 @@ const DataManager = {
   async exportAll() {
     try {
       const data = await API.exportData();
-      const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `班级积分数据_${new Date().toISOString().split('T')[0]}.json`;
+      const date = new Date().toISOString().split('T')[0];
+      const className = (data && data.settings && data.settings.class_name) || '';
+      a.download = className
+        ? `${className}-积分备份-${date}.json`
+        : `class-points-backup-${date}.json`;
       document.body.appendChild(a); a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
@@ -387,16 +391,31 @@ const DataManager = {
   },
 
   async importAll(event) {
-    const file = event.target.files[0];
+    const file = event.target.files && event.target.files[0];
     if (!file) return;
+    const currentRole = (API.getRole && API.getRole()) || 'guest';
+    if (currentRole !== 'admin') {
+      alert('仅管理员可以导入数据，请先在管理后台登录。');
+      event.target.value = '';
+      return;
+    }
+    if (!confirm('导入会覆盖当前所有学生、小组、规则、商品与历史记录。\n本机登录密码会保留。\n\n确定继续吗？')) {
+      event.target.value = '';
+      return;
+    }
     try {
       const text = await file.text();
-      const data = JSON.parse(text);
-      await API.importData(data);
-      alert('数据导入成功！');
+      let data;
+      try { data = JSON.parse(text); } catch { throw new Error('文件不是有效的 JSON 格式'); }
+      if (!data || typeof data !== 'object') throw new Error('文件内容为空或格式不正确');
+      const res = await API.importData(data);
+      alert((res && res.message) || '数据导入成功！');
       await App.loadAllData();
+      await App.loadClassInfo();
       App.renderAll();
-    } catch (err) { alert('导入失败，请确保文件格式正确。'); }
+    } catch (err) {
+      alert('导入失败：' + (err.message || '请确保文件格式正确。'));
+    }
     event.target.value = '';
   },
 

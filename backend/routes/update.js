@@ -21,8 +21,10 @@ const REPO = process.env.GITHUB_REPO || 'dongchengqiao/class-score-mgr';
 const GH_PROXY = 'https://gh-proxy.org/';
 // GitHub API
 const API_BASE = 'https://api.github.com';
-// 应用根目录（项目根）
-const APP_ROOT = path.join(__dirname, '..', '..');
+// 应用根目录（项目根；桌面版由 CSM_APP_ROOT 指向打包的运行时目录）
+const APP_ROOT = process.env.CSM_APP_ROOT
+  ? path.resolve(process.env.CSM_APP_ROOT)
+  : path.join(__dirname, '..', '..');
 // 请求超时（毫秒）
 const TIMEOUT = 15000;
 // 下载超时（毫秒）

@@ -6,7 +6,10 @@ const path = require('path');
 const fs = require('fs');
 
 // 头像上传配置
-const UPLOADS_DIR = path.join(__dirname, '..', '..', 'public', 'uploads');
+// 目录可由环境变量 CSM_UPLOADS_DIR 覆盖（Electron 打包后应用目录只读，需写到用户目录）
+const UPLOADS_DIR = process.env.CSM_UPLOADS_DIR
+  ? path.resolve(process.env.CSM_UPLOADS_DIR)
+  : path.join(__dirname, '..', '..', 'public', 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const storage = multer.diskStorage({

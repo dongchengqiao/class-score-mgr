@@ -1,10 +1,15 @@
 {
-  "name": "class-points-management",
-  "version": "1.0.4",
+  "name": "class-points-mgr",
+  "version": "1.0.5",
   "description": "班级积分管理系统",
   "scripts": {
     "install:all": "cd backend && npm install",
     "start": "cd backend && node server.js",
-    "dev": "cd backend && node --watch server.js"
+    "dev": "cd backend && node --watch server.js",
+    "desktop:prepare": "node scripts/prepare-electron-app.js",
+    "desktop:start": "cd electron && npm start",
+    "desktop:dist": "cd electron && npm run dist",
+    "desktop:dist:mac": "cd electron && npm run dist:mac",
+    "desktop:dist:win": "cd electron && npm run dist:win"
   }
 }

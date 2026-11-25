@@ -3,6 +3,7 @@ const router = express.Router();
 const DB = require('../json-db');
 const setupState = require('../lib/setup-state');
 const runtime = require('../lib/runtime');
+const logger = require('../lib/logger');
 
 const MIN_PORT = 1024;
 const MAX_PORT = 65535;
@@ -149,6 +150,20 @@ router.get('/students', (req, res) => {
       historyCount: Array.isArray(s.history) ? s.history.length : 0
     }));
     res.json(list);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/** 查看后端运行日志（默认最近 200 行） */
+router.get('/logs', (req, res) => {
+  try {
+    const lines = logger.tail(req.query.lines);
+    res.json({
+      file: logger.APP_LOG,
+      count: lines.length,
+      lines
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

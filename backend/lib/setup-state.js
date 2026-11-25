@@ -9,9 +9,14 @@
 const fs = require('fs');
 const path = require('path');
 
-const APP_ROOT = path.join(__dirname, '..', '..');
+const APP_ROOT = process.env.CSM_APP_ROOT
+  ? path.resolve(process.env.CSM_APP_ROOT)
+  : path.join(__dirname, '..', '..');
 const DEFAULT_PORT = 4000;
-const DATA_DIR = path.join(APP_ROOT, 'data');
+// 数据目录：默认项目根目录下的 data/，可由环境变量 CSM_DATA_DIR 覆盖
+const DATA_DIR = process.env.CSM_DATA_DIR
+  ? path.resolve(process.env.CSM_DATA_DIR)
+  : path.join(APP_ROOT, 'data');
 const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
 // 实体数据文件：任意一个存在即说明是「已有数据的安装」
 const ENTITY_FILES = ['student.json', 'group.json', 'rule.json', 'shouItems.json'];

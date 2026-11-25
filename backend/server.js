@@ -4,6 +4,7 @@ require('./lib/log-tee').setupLogTee();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 
 // ⚠️ 必须最先加载：json-db 会自动创建 data/ 并写入默认数据，
 //    初始化状态的判断必须在它运行前完成快照。
@@ -20,6 +21,8 @@ const adminRouter = require('./routes/admin');
 const updateRouter = require('./routes/update');
 const setupRouter = require('./routes/setup');
 const runtime = require('./lib/runtime');
+const logger = require('./lib/logger');
+const realtime = require('./lib/realtime');
 const DB = require('./json-db');
 const { authenticate, requireAdmin } = require('./middleware/auth');
 
@@ -42,6 +45,9 @@ const SETUP_PAGE = '/setup.html';
 // 中间件
 // ============================================================
 
+// 位于反向代理之后时，正确解析真实客户端 IP（影响日志中的 IP 记录）
+app.set('trust proxy', true);
+
 // CORS - 允许前后端分离开发
 app.use(cors());
 
@@ -49,12 +55,11 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// 请求日志
-app.use((req, res, next) => {
-  const timestamp = new Date().toLocaleString('zh-CN');
-  console.log(`[${timestamp}] ${req.method} ${req.originalUrl}`);
-  next();
-});
+// 请求日志：日期时间 | 级别 | 来源 IP | 操作 | 方法路径/状态码/耗时/角色/参数
+app.use(logger.requestLogger);
+
+// 写操作成功后通过 WebSocket 广播，客户端自动刷新
+app.use(realtime.broadcastMiddleware);
 
 // ============================================================
 // 初始化守卫
@@ -82,6 +87,11 @@ app.use((req, res, next) => {
 
 // 提供前端静态文件
 app.use(express.static(path.join(__dirname, '..', 'public')));
+
+// 头像目录：可用 CSM_UPLOADS_DIR 覆盖（Electron 打包后写到用户目录）
+if (process.env.CSM_UPLOADS_DIR) {
+  app.use('/uploads', express.static(path.resolve(process.env.CSM_UPLOADS_DIR)));
+}
 
 // ============================================================
 // API 路由
@@ -142,8 +152,18 @@ const server = app.listen(PORT, () => {
 ║  管理: http://localhost:${PORT}/index.html      ║
 ║  早读: http://localhost:${PORT}/zaodu.html      ║
 ║  管理: http://localhost:${PORT}/admin.html      ║
+║  实时: ws://localhost:${PORT}/ws                ║
 ╚══════════════════════════════════════════════╝
   `);
+  realtime.attach(server);
+  logger.info('系统', '服务启动', `监听端口 ${PORT}，数据目录 ${DB.DATA_DIR || '默认'}`);
+
+  // 桌面版：写出 PID 文件，App 退出时据此结束内置服务
+  if (process.env.CSM_DESKTOP === '1' && DB.DATA_DIR) {
+    try {
+      fs.writeFileSync(path.join(DB.DATA_DIR, 'server.pid'), String(process.pid), 'utf-8');
+    } catch { /* 忽略 */ }
+  }
 });
 
 // 端口被占用时（如自动重启瞬间的交接期）自动重试，而不是直接崩溃
@@ -165,3 +185,32 @@ server.on('error', err => {
 
 // 注册实例，供自动更新后自我重启使用
 runtime.register(server);
+
+// 桌面版（Electron）：外部进程就是 App 本身，退出进程会连带关闭窗口，
+// 因此端口变更时改为「原地重新监听」，而不是 spawn 新进程再 exit。
+if (process.env.CSM_DESKTOP === '1') {
+  runtime.setDesktopRestartHandler((newPort, delay) => new Promise(resolve => {
+    const targetPort = Number.isFinite(newPort) ? newPort : PORT;
+    setTimeout(() => {
+      try { realtime.shutdown(); } catch { /* 忽略 */ }
+      try { server.close(); } catch { /* 忽略 */ }
+      setTimeout(() => {
+        server.listen(targetPort, () => {
+          try { realtime.attach(server); } catch { /* 忽略 */ }
+          logger.info('系统', '服务重启', `已在端口 ${targetPort} 重新监听（桌面版原地重启）`);
+          // 通知桌面版主进程把窗口指向新端口
+          try {
+            if (typeof global.__CSM_DESKTOP_ON_RESTART === 'function') global.__CSM_DESKTOP_ON_RESTART(targetPort);
+          } catch { /* 忽略 */ }
+          resolve({ restarted: true, port: targetPort });
+        });
+        server.once('error', err => resolve({ restarted: false, port: targetPort, error: err.message }));
+      }, 300);
+    }, Math.max(0, delay || 0));
+  }));
+}
+
+// 退出前关闭 WebSocket 连接，避免重启时被长连接卡住
+process.on('exit', () => {
+  try { realtime.shutdown(); } catch { /* 忽略 */ }
+});

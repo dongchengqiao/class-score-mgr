@@ -17,6 +17,9 @@ const Admin = {
     // 切换端口后源（含端口）变化会丢失 localStorage，用 URL hash 传回 token
     Admin.adoptTokenFromHash();
 
+    // 启用 WebSocket 实时同步
+    if (window.Realtime) Realtime.connect();
+
     // 检查当前 token 角色：admin 可直接进入，否则显示"登录管理员账号"
     const role = API.getRole();
     if (role === 'admin') {

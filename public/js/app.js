@@ -857,19 +857,18 @@ const App = {
           <input type="checkbox" class="group-member-checkbox" value="${m.id}" checked style="margin-right:10px;">
           <span>${m.name}</span></label></div>`;
     });
-    html += '</div><hr style="margin:20px 0;"><p>选择规则或自定义积分:</p><div class="rules-options">';
-    this.rules.forEach(r => {
-      const sign = r.points > 0 ? '+' : '';
-      html += `<div class="rule-option ${r.points > 0 ? 'positive' : 'negative'}" data-points="${r.points}" data-name="${r.name}">
-        <span>${r.name}</span><span>${sign}${r.points}</span></div>`;
-    });
-    html += '</div>';
-    html += `<div class="custom-points mt-3"><h4>自定义积分</h4>
-      <div class="form-group">
-        <input type="number" id="customPoints" class="form-control" placeholder="分数">
-        <input type="text" id="customReason" class="form-control mt-2" placeholder="原因">
-        <button id="applyCustomBtn" class="btn btn-primary mt-2">应用</button>
-      </div></div>`;
+    // 规则渲染统一走 ruleOptionHtml（正确处理自定义类型的「自定义」标签与 data-type）
+    const posRules = this.rules.filter(r => this.ruleIsPositive(r));
+    const negRules = this.rules.filter(r => !this.ruleIsPositive(r));
+    let rulesHtml = '';
+    posRules.forEach(r => rulesHtml += this.ruleOptionHtml(r));
+    if (negRules.length) {
+      rulesHtml += '<div style="grid-column:1/-1;"><hr style="margin:10px 0;border-style:dashed;"></div>';
+      negRules.forEach(r => rulesHtml += this.ruleOptionHtml(r));
+    }
+    html += '</div><hr style="margin:20px 0;"><p>选择规则或自定义积分:</p>';
+    html += `<div class="rules-options">${rulesHtml}</div>`;
+    html += this.customPointsHtml();
     UI.openModal(html);
 
     // 全选
@@ -879,18 +878,36 @@ const App = {
 
     const getSelected = () => [...document.querySelectorAll('.group-member-checkbox:checked')].map(cb => parseInt(cb.value));
 
+    const applyGroupPoints = async (pts, rsn) => {
+      const ids = getSelected();
+      await API.groupPoints(groupId, ids, pts, rsn);
+      await App.loadStudents();
+      App.renderAll();
+      UI.closeModal();
+    };
+
     document.querySelectorAll('.rule-option').forEach(el => {
-      el.onclick = async () => {
+      el.onclick = () => {
         const ids = getSelected();
         if (!ids.length) { alert('请至少选择一名小组成员！'); return; }
-        const pts = parseInt(el.dataset.points);
         const rsn = el.dataset.name;
-        UI.confirm('确认操作', `确定为选中的 ${ids.length} 名成员 ${pts > 0 ? '加' : '减'} ${Math.abs(pts)} 分吗？`, async () => {
-          await API.groupPoints(groupId, ids, pts, rsn);
-          await App.loadStudents();
-          App.renderAll();
-          UI.closeModal();
-        });
+        const rule = App.rules.find(r => String(r.id) === String(el.dataset.ruleId));
+        // 自定义类型 → 打开二级分数选择弹窗
+        if (el.dataset.type && el.dataset.type !== 'fixed' && rule) {
+          App.openCustomScorePicker({
+            rule,
+            back: () => App.showGroupPointsModal(groupId),
+            onPick: (pts) => {
+              UI.confirm('确认操作', `确定为选中的 ${ids.length} 名成员 ${pts > 0 ? '加' : '减'} ${Math.abs(pts)} 分吗？`,
+                () => applyGroupPoints(pts, rsn));
+            }
+          });
+          return;
+        }
+        const pts = parseInt(el.dataset.points, 10);
+        if (!Number.isFinite(pts)) return;
+        UI.confirm('确认操作', `确定为选中的 ${ids.length} 名成员 ${pts > 0 ? '加' : '减'} ${Math.abs(pts)} 分吗？`,
+          () => applyGroupPoints(pts, rsn));
       };
     });
     document.getElementById('applyCustomBtn').onclick = async () => {
@@ -960,6 +977,8 @@ const App = {
     UI.setupDropZones();
     // loadTheme() 会重置 className，若有 guest-mode 需重新添加
     if (Auth.isGuest) document.body.classList.add('guest-mode');
+    // 启用 WebSocket 实时同步（其他端加减分后自动刷新）
+    if (window.Realtime) Realtime.connect();
   },
 
   async loadClassInfo() {

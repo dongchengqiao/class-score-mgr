@@ -7,7 +7,9 @@
 const fs = require('fs');
 const path = require('path');
 
-const LOG_DIR = path.join(__dirname, '..', '..', 'logs');
+// 日志目录：默认项目根目录下的 logs/，可由环境变量 CSM_LOG_DIR 覆盖
+// （Electron 打包后应用目录可能不可写，需要写到 userData 目录）
+const LOG_DIR = process.env.CSM_LOG_DIR || path.join(__dirname, '..', '..', 'logs');
 const LOG_FILE = path.join(LOG_DIR, 'server.log');
 
 let enabled = false;
