@@ -81,7 +81,10 @@ mac:
   darkModeSupport: true
 
 dmg:
-  title: 班级积分管理 ${version}
+  # 卷名必须带架构：同一次构建会并行打 x64 / arm64 两个 DMG，
+  # 若卷名相同，后一个挂载时会与前者冲突，
+  # 导致 hdiutil detach 反复失败（CI 上表现为「构建桌面版安装包」exit code 1）
+  title: 班级积分管理 ${version} ${arch}
 
 # ---------------- Linux（可选，未在 CI 构建） ----------------
 linux:
