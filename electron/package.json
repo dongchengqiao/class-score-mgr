@@ -12,7 +12,7 @@
     "start": "node ../scripts/prepare-electron-app.js && electron stage",
     "dist": "node ../scripts/prepare-electron-app.js && electron-builder --config electron-builder.yml --publish never",
     "dist:mac": "node ../scripts/prepare-electron-app.js && electron-builder --config electron-builder.yml --mac --x64 --arm64 --publish never",
-    "dist:win": "node ../scripts/prepare-electron-app.js && electron-builder --config electron-builder.yml --win --x64 --arm64 --publish never"
+    "dist:win": "node ../scripts/prepare-electron-app.js && electron-builder --config electron-builder.yml --win --x64 --arm64 --publish never && node ../scripts/prune-windows-artifacts.js"
   },
   "dependencies": {
     "electron-updater": "^6.3.9"

@@ -27,7 +27,7 @@ jobs:
       version: ${{ steps.vars.outputs.version }}
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -98,7 +98,7 @@ jobs:
           cat release_notes.md
 
       - name: 保存更新日志
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: release-notes
           path: release_notes.md
@@ -113,12 +113,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: 取回更新日志
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: release-notes
 
@@ -155,7 +155,7 @@ jobs:
           ls -lh dist/
 
       - name: 创建 GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           name: ${{ needs.version.outputs.tag }}
@@ -170,6 +170,8 @@ jobs:
   # ----------------------------------------------------------
   # 3) 桌面版（Electron）：Windows x64/ARM64 + macOS x64/ARM64
   #    每个平台一次构建两种架构，保证 latest*.yml 只有一份
+  #    （Windows 端 electron-updater 的 channel 固定为 latest，无法按架构拆分，
+  #     故多架构必须一次出包；合并包由 scripts/prune-windows-artifacts.js 清理）
   # ----------------------------------------------------------
   desktop:
     name: 桌面版 · ${{ matrix.label }}
@@ -195,15 +197,15 @@ jobs:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 配置 Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
 
       - name: 取回更新日志
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: release-notes
 
@@ -230,8 +232,16 @@ jobs:
         shell: bash
         run: rm -f electron/dist/*.blockmap
 
+      # 双架构合并包（形如 class-score-mgr-<版本>-setup.exe，约 164MB）
+      # 是 electron-builder 多架构出包的副产物，自动更新不会用到它（
+      # electron-updater 会优先匹配含 process.arch 的文件名）。
+      # 此处删除合并包并同步精简 latest.yml，避免用户误下载体积翻倍的安装包。
+      - name: 移除双架构合并包
+        shell: bash
+        run: node scripts/prune-windows-artifacts.js
+
       - name: 发布桌面版产物
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           name: ${{ needs.version.outputs.tag }}

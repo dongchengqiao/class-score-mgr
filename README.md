@@ -97,7 +97,8 @@ npm start
 │   ├── electron-builder.yml  # 打包配置（Win x64+ARM 安装包/单文件、macOS x64+ARM）
 │   └── stage/                # 打包用临时目录（由脚本生成，已 .gitignore）
 ├── scripts/
-│   └── prepare-electron-app.js # 生成 electron/stage（复制前后端 + 安装运行时依赖）
+│   ├── prepare-electron-app.js # 生成 electron/stage（复制前后端 + 安装运行时依赖）
+│   └── prune-windows-artifacts.js # 构建后清理 Windows 双架构合并包 + 精简 latest.yml
 ├── package.json              # 根脚本（install:all / start / dev / desktop:*）
 └── start.sh                  # 一键启动脚本
 ```
@@ -229,6 +230,18 @@ npm run desktop:dist:win  # 打包 Windows（x64 + arm64）
 - 离线模式下可在管理后台修改端口，服务会在 **同一进程内原地重启**，窗口自动跳转新端口，App 不会退出。
 - **自动更新**：内置 `electron-updater`，菜单「帮助 → 检查更新」或启动后静默检查，下载完成后可立即安装。
 - 默认端口若被占用，会自动向后寻找空闲端口。
+
+### 更新包与架构
+
+Release 中的桌面版产物按架构命名，`electron-updater` 会按当前机器的 `process.arch` **自动选择对应架构的小包**（Windows 约 80~90MB），不会下载体积翻倍的双架构合并包：
+
+| 产物 | 用途 |
+|------|------|
+| `*-x64-setup.exe` / `*-arm64-setup.exe` | 分架构安装包，自动更新实际下载的文件 |
+| `*-x64-portable.exe` / `*-arm64-portable.exe` | 分架构免安装单文件版（手动下载用） |
+| `*-x64.dmg` / `*-arm64.dmg`、`*-x64.zip` / `*-arm64.zip` | macOS 分架构产物（zip 为自动更新用） |
+
+> `electron-builder` 一次构建两种架构时会额外产生文件名**不带架构后缀**的合并安装包（`*-setup.exe` / `*-portable.exe`，约 164MB）。CI 与本地 `npm run dist:win` 构建结束后会执行 `scripts/prune-windows-artifacts.js` 将其删除，并同步精简 `latest.yml`（`files` 只保留分架构条目、顶层 `path`/`sha512` 指向第一个分架构包），因此 Release 不再包含冗余大包。
 
 ### 桌面版数据与日志位置
 
