@@ -12,3 +12,5 @@ uploads
 /electron/node_modules
 /electron/stage
 /electron/dist
+/electron/dist-win-test
+/electron/dist-win-dir

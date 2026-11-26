@@ -183,7 +183,10 @@ jobs:
             label: Windows x64 + ARM64
             platform: win
             archs: '--x64 --arm64'
-          - os: macos-14
+          # macOS 用 arm64 runner（macos-15 / macos-latest），
+          # 在同一次构建里同时交叉编译 x64 与 arm64
+          # （注意：macos-14 标签已下线，会报 “configuration ... is not supported”）
+          - os: macos-15
             label: macOS x64 + ARM64
             platform: mac
             archs: '--x64 --arm64'
