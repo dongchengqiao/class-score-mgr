@@ -226,6 +226,10 @@ jobs:
         shell: bash
         run: ls -lh electron/dist/
 
+      - name: 清理中间产物
+        shell: bash
+        run: rm -f electron/dist/*.blockmap
+
       - name: 发布桌面版产物
         uses: softprops/action-gh-release@v2
         with:
@@ -239,7 +243,6 @@ jobs:
             electron/dist/*.exe
             electron/dist/*.dmg
             electron/dist/*.zip
-            electron/dist/*.blockmap
             electron/dist/latest*.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
